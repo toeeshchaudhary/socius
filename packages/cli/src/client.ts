@@ -20,6 +20,15 @@ interface Pending {
   reject: (err: Error) => void;
 }
 
+export interface MemoryListItem {
+  id: string;
+  kind: string;
+  content: string;
+  confidence: number;
+  tags: string[];
+  updatedAt: number;
+}
+
 export class DaemonClient {
   private buf = "";
   private nextId = 1;
@@ -103,6 +112,18 @@ export class DaemonClient {
     };
     await this.request("infer", params);
     this.onNotify = null;
+  }
+
+  remember(content: string, kind?: string): Promise<{ id: string }> {
+    return this.request("remember", { content, ...(kind ? { kind } : {}) });
+  }
+
+  memList(kinds?: string[], limit?: number): Promise<{ memories: MemoryListItem[] }> {
+    return this.request("mem.list", { ...(kinds ? { kinds } : {}), ...(limit ? { limit } : {}) });
+  }
+
+  memForget(id: string): Promise<{ ok: boolean }> {
+    return this.request("mem.forget", { id });
   }
 
   shutdown(): Promise<unknown> {

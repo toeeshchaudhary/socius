@@ -4,6 +4,9 @@
   "workspaces": {
     "": {
       "name": "socius",
+      "dependencies": {
+        "sqlite-vec": "^0.1.9",
+      },
       "devDependencies": {
         "@biomejs/biome": "^1.9.4",
         "@types/bun": "^1.3.0",

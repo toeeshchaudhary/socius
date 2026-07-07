@@ -5,6 +5,7 @@
  */
 import type { Result, SociusConfig } from "@socius/core";
 import { ok } from "@socius/core";
+import { HashingEmbedder } from "@socius/inference";
 import { ConsoleLogger } from "@socius/logging";
 import { Daemon } from "./daemon.ts";
 import { LlamaModelRuntime } from "./runtime.ts";
@@ -15,5 +16,8 @@ export { type ModelRuntime, LlamaModelRuntime } from "./runtime.ts";
 export function createDaemon(config: SociusConfig): Result<Daemon> {
   const logger = new ConsoleLogger({ level: config.logging.level, subsystem: "daemon" });
   const runtime = new LlamaModelRuntime(config, logger.child("inference"));
-  return ok(new Daemon(config, logger, runtime));
+  // No embedding model is configured by default, so use the model-free hashing
+  // embedder. Configuring a real embedding GGUF swaps in LlamaCppEmbedder.
+  const embedder = new HashingEmbedder(256);
+  return ok(new Daemon(config, logger, runtime, embedder));
 }

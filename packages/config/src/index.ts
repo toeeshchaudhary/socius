@@ -29,6 +29,7 @@ export function defaultConfig(paths: SociusPaths = resolvePaths()): SociusConfig
       // CPU-only load of a 5 GB model + graph reserve can take a while on first
       // start; be generous so the CLI doesn't give up before the model is ready.
       startupTimeoutMs: 120_000,
+      thinking: false,
       embedder: {
         id: "bge-small-en-v1.5-q8",
         path: "",
@@ -45,6 +46,10 @@ export function defaultConfig(paths: SociusPaths = resolvePaths()): SociusConfig
       defaultK: 12,
       defaultTokenBudget: 1024,
       confidenceHalfLifeDays: 30,
+    },
+    storage: {
+      dbFile: paths.dbFile,
+      knowledgeDir: paths.knowledgeDir,
     },
     permissions: {
       // Tools execute for real by default, but the policy below forces an

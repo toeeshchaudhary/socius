@@ -1,27 +1,12 @@
 /**
  * @socius/storage — the single SQLite database (bun:sqlite) with sqlite-vec for
- * vector KNN and FTS5 for keyword search. Owns migrations and low-level
- * repositories. The DB is a *cache/index*; Markdown knowledge is canonical and
- * the DB is rebuildable from disk.
- *
- * M1 wires bun:sqlite + migrations; this stub defines the surface.
+ * vector KNN and FTS5 for keyword search. Owns migrations. The DB is a
+ * cache/index over canonical data (Markdown knowledge is the source of truth).
  */
-import { type Result, type SociusError, error } from "@socius/core";
+export { SociusDatabase } from "./database.ts";
+export { MIGRATIONS, type Migration } from "./migrations.ts";
 
-export interface Migration {
-  readonly version: number;
-  readonly name: string;
-  readonly up: string;
-}
-
-export interface Database {
-  migrate(): Promise<Result<void>>;
-  close(): void;
-}
-
-const notImplemented = (what: string): SociusError =>
-  error("NOT_IMPLEMENTED", "storage", `${what} is not implemented yet (M1/M2).`);
-
-export async function openDatabase(_path: string): Promise<Result<Database>> {
-  return { ok: false, error: notImplemented("openDatabase") };
+/** Pack a normalized embedding for sqlite-vec storage/query. */
+export function packVector(v: Float32Array): Uint8Array {
+  return new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
 }

@@ -18,6 +18,13 @@ export interface InferenceConfig {
   readonly host: string;
   readonly port: number;
   readonly startupTimeoutMs: number;
+  /**
+   * Whether the model should emit chain-of-thought before answering. Default
+   * false: reasoning models (like this Gemma build) otherwise spend the whole
+   * token budget "thinking" and return empty content — and thinking is slow on
+   * CPU, which fights the grep-like UX. The planner may enable it per-slot later.
+   */
+  readonly thinking: boolean;
   readonly embedder: {
     readonly id: string;
     readonly path: string;
@@ -59,11 +66,17 @@ export interface McpServerConfig {
   readonly enabled: boolean;
 }
 
+export interface StorageConfig {
+  readonly dbFile: string;
+  readonly knowledgeDir: string;
+}
+
 export interface SociusConfig {
   readonly model: ModelConfig;
   readonly inference: InferenceConfig;
   readonly daemon: DaemonConfig;
   readonly memory: MemoryConfig;
+  readonly storage: StorageConfig;
   readonly permissions: PermissionsConfig;
   readonly logging: LoggingConfig;
   readonly mcp: readonly McpServerConfig[];

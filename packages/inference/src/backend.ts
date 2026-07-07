@@ -16,6 +16,8 @@ export interface LlamaCppBackendOptions {
   readonly baseUrl: string;
   readonly modelId: string;
   readonly contextWindow: number;
+  /** Enable the model's chain-of-thought. Default false (direct answers). */
+  readonly thinking?: boolean;
 }
 
 export class LlamaCppBackend implements InferenceBackend {
@@ -27,6 +29,9 @@ export class LlamaCppBackend implements InferenceBackend {
       messages: req.messages,
       stream: true,
       temperature: req.temperature ?? 0.7,
+      // Reasoning models otherwise burn the whole budget "thinking" and return
+      // empty content; disable unless explicitly enabled.
+      chat_template_kwargs: { enable_thinking: this.opts.thinking ?? false },
     };
     if (req.maxTokens !== undefined) body.max_tokens = req.maxTokens;
     if (req.topP !== undefined) body.top_p = req.topP;

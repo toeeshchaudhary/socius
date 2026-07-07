@@ -37,6 +37,7 @@ export class LlamaModelRuntime implements ModelRuntime {
       baseUrl: this.proc.baseUrl,
       modelId: config.model.id,
       contextWindow: config.model.contextWindow,
+      thinking: config.inference.thinking,
     });
   }
 

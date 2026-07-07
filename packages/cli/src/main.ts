@@ -43,6 +43,52 @@ async function doctor(): Promise<number> {
   return modelOk && binOk ? 0 : 1;
 }
 
+async function remember(text: string): Promise<number> {
+  if (!text) {
+    process.stderr.write("usage: socius remember <text>\n");
+    return 2;
+  }
+  const config = defaultConfig(resolvePaths());
+  const client = await ensureDaemon(config);
+  const { id } = await client.remember(text);
+  client.close();
+  process.stdout.write(`remembered (${id.slice(0, 8)})\n`);
+  return 0;
+}
+
+async function mem(args: readonly string[]): Promise<number> {
+  const sub = args[0];
+  const config = defaultConfig(resolvePaths());
+  const client = await ensureDaemon(config);
+  try {
+    if (sub === "forget") {
+      const id = args[1];
+      if (!id) {
+        process.stderr.write("usage: socius mem forget <id>\n");
+        return 2;
+      }
+      await client.memForget(id);
+      process.stdout.write("forgotten\n");
+      return 0;
+    }
+    // default: list
+    const { memories } = await client.memList(undefined, 50);
+    if (memories.length === 0) {
+      process.stdout.write("(no memories yet — use `socius remember <text>`)\n");
+      return 0;
+    }
+    for (const m of memories) {
+      const when = new Date(m.updatedAt).toISOString().slice(0, 10);
+      process.stdout.write(
+        `${m.id.slice(0, 8)}  ${m.kind.padEnd(14)}  ${when}  ${m.content.replace(/\n/g, " ").slice(0, 80)}\n`,
+      );
+    }
+    return 0;
+  } finally {
+    client.close();
+  }
+}
+
 async function restart(): Promise<number> {
   const config = defaultConfig(resolvePaths());
   const client = await DaemonClient.connect(config.daemon.socketPath);
@@ -86,12 +132,14 @@ async function main(argv: readonly string[]): Promise<number> {
 
   if (command === "doctor") return doctor();
   if (command === "restart") return restart();
+  if (command === "remember") return remember(args.slice(1).join(" ").trim());
+  if (command === "mem") return mem(args.slice(1));
 
   const input = args.join(" ").trim();
   const stdin = await readStdin();
   if (!input && !stdin) {
     process.stderr.write("usage: socius <question>   |   <cmd> | socius <question>\n");
-    process.stderr.write("       socius doctor | restart\n");
+    process.stderr.write("       socius remember <text> | mem [list|forget <id>] | doctor | restart\n");
     return 2;
   }
   return ask(input || "Summarize and explain the following.", stdin);
