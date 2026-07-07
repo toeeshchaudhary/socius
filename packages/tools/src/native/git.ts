@@ -69,6 +69,59 @@ export const gitDiffTool: Tool = {
   },
 };
 
+export const gitAddTool: Tool = {
+  name: "git.add",
+  description: "Stage files for commit (git add). Destructive to the staging area.",
+  source: "native",
+  inputSchema: {
+    type: "object",
+    properties: {
+      cwd: { type: "string", description: "Repository path (default: current directory)" },
+      paths: { type: "array", items: { type: "string" }, description: "Paths to stage (default: all changes)" },
+    },
+  },
+  outputSchema: { type: "object", properties: { staged: { type: "string" } } },
+  capabilities: ["fs.write"],
+  capabilityTags: ["git", "write", "stage", "add"],
+  destructive: true,
+  async invoke(args: unknown, _ctx: ToolContext): Promise<Result<ToolResult>> {
+    const paths = (args as { paths?: unknown })?.paths;
+    const list = Array.isArray(paths) && paths.length > 0 ? paths.map(String) : ["-A"];
+    const r = runGit(cwdOf(args), ["add", ...list]);
+    if (!r.ok) return r;
+    return ok({ data: { staged: list.join(" ") }, summary: `git add ${list.join(" ")}` });
+  },
+};
+
+export const gitCommitTool: Tool = {
+  name: "git.commit",
+  description: "Create a commit with a message (git commit -m). Destructive — writes history.",
+  source: "native",
+  inputSchema: {
+    type: "object",
+    properties: {
+      cwd: { type: "string", description: "Repository path (default: current directory)" },
+      message: { type: "string", description: "Commit message" },
+      all: { type: "boolean", description: "Stage all tracked changes first (git commit -a)" },
+    },
+    required: ["message"],
+  },
+  outputSchema: { type: "object", properties: { commit: { type: "string" } } },
+  capabilities: ["fs.write"],
+  capabilityTags: ["git", "write", "commit"],
+  destructive: true,
+  async invoke(args: unknown, _ctx: ToolContext): Promise<Result<ToolResult>> {
+    const a = args as { message?: unknown; all?: unknown };
+    if (typeof a.message !== "string" || a.message.trim().length === 0) {
+      return { ok: false, error: error("TOOL_INPUT_INVALID", "tools", "`message` (non-empty string) is required") };
+    }
+    const flags = a.all === true ? ["-a"] : [];
+    const r = runGit(cwdOf(args), ["commit", ...flags, "-m", a.message]);
+    if (!r.ok) return r;
+    return ok({ data: { commit: r.value.trim() }, summary: "git commit" });
+  },
+};
+
 export const gitLogTool: Tool = {
   name: "git.log",
   description: "Show recent commit history (one line per commit).",

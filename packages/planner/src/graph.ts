@@ -90,9 +90,11 @@ export class GraphPlanner implements Planner {
       if (res.ok) {
         outcomes.push({ tool: tool.name, ok: true, summary: res.value.summary ?? tool.name, data: res.value.data });
       } else {
-        yield step("reflect", `${tool.name} failed: ${res.error.message}`);
-        outcomes.push({ tool: tool.name, ok: false, summary: res.error.message, data: null });
-        break;
+        // Reflect: record the failure and loop — the next decide() sees it in
+        // "Tool results so far" and can correct (different tool/args) or answer.
+        // Bounded by maxToolCalls, so a persistently-failing tool can't spin.
+        yield step("reflect", `${tool.name} failed: ${res.error.message} — reconsidering`);
+        outcomes.push({ tool: tool.name, ok: false, summary: `ERROR: ${res.error.message}`, data: null });
       }
     }
 

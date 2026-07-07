@@ -118,6 +118,31 @@ describe("GraphPlanner", () => {
     expect(answer).toBe("fallback");
   });
 
+  test("reflects after a tool failure and can still answer (self-correction)", async () => {
+    const failing: Tool = {
+      ...echoTool,
+      name: "boom",
+      async invoke(): Promise<Result<ToolResult>> {
+        return { ok: false, error: { code: "TOOL_FAILED", subsystem: "tools", message: "kaboom", recoverable: true, name: "SociusError" } as never };
+      },
+    };
+    const registry = new InMemoryToolRegistry();
+    registry.register(failing);
+    const backend = new ScriptedBackend(
+      ['{"action":"tool","tool":"boom","args":{}}', '{"action":"answer"}'],
+      ["recovered"],
+    );
+    const planner = new GraphPlanner({ backend, systemPrompt: "sys", tools: registry, runner: new ToolRunner(policy) });
+    const steps: string[] = [];
+    let answer = "";
+    for await (const ev of planner.run(ctx())) {
+      if (ev.type === "step" && ev.step) steps.push(`${ev.step.node}:${ev.step.label}`);
+      if (ev.type === "token" && ev.token) answer += ev.token;
+    }
+    expect(steps.some((s) => s.startsWith("reflect"))).toBe(true);
+    expect(answer).toBe("recovered");
+  });
+
   test("respects the maxToolCalls bound (no infinite loop)", async () => {
     // Always asks for a tool — must stop at maxToolCalls, then answer.
     const backend = new ScriptedBackend(['{"action":"tool","tool":"echo","args":{"msg":"x"}}'], ["stopped"]);

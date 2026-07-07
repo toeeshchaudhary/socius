@@ -46,10 +46,23 @@ export interface MemoryConfig {
   readonly confidenceHalfLifeDays: number;
 }
 
+export type PolicyDecision = "allow" | "confirm" | "deny";
+
+export interface PathRule {
+  /** Path prefix this rule applies to (matched against a tool's resources). */
+  readonly prefix: string;
+  readonly decision: PolicyDecision;
+}
+
 export interface PermissionsConfig {
   readonly defaultMode: "dry_run" | "sandbox" | "live";
-  /** capability → default decision; per-tool overrides layered on top. */
-  readonly policy: Readonly<Record<string, "allow" | "confirm" | "deny">>;
+  /** capability → default decision. */
+  readonly policy: Readonly<Record<string, PolicyDecision>>;
+  /** Per-tool overrides (by tool name), win over the capability decision. */
+  readonly tools?: Readonly<Record<string, PolicyDecision>>;
+  /** Per-path rules for fs tools: `deny` always wins; `allow` can downgrade a
+   *  confirm to allow (e.g. a trusted workspace); `confirm` tightens an allow. */
+  readonly paths?: readonly PathRule[];
 }
 
 export interface LoggingConfig {

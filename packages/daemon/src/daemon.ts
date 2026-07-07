@@ -153,7 +153,10 @@ export class Daemon {
     }
 
     this.registry = registry;
-    this.policy = new ConfiguredPolicyEngine(this.config.permissions.policy);
+    this.policy = new ConfiguredPolicyEngine(this.config.permissions.policy, {
+      ...(this.config.permissions.tools ? { tools: this.config.permissions.tools } : {}),
+      ...(this.config.permissions.paths ? { paths: [...this.config.permissions.paths] } : {}),
+    });
     this.systemPrompt = await loadSystemPrompt(this.config.promptsDir);
 
     // A stale socket file from a previous crash would make bind fail; the CLI's
