@@ -42,10 +42,16 @@ async function doctor(): Promise<number> {
   const binOk = existsSync(config.inference.llamaServerBin);
   const client = await DaemonClient.connect(config.daemon.socketPath);
   let daemonLine = "not running (will spawn on first use)";
+  let extra = "";
   if (client) {
     try {
       const hs = await client.handshake();
       daemonLine = `running — protocol ${hs.protocolVersion}, model ${hs.modelId}, ready=${hs.modelReady}`;
+      const health = await client.health();
+      extra = `  [    ] tools         ${health.tools ?? "?"} registered · memory ${health.memory ? "on" : "off"}\n`;
+      for (const s of health.mcp ?? []) {
+        extra += `  [${mark(s.connected)}] mcp:${s.name.padEnd(8)} ${s.connected ? `${s.toolCount} tools` : `down — ${s.error ?? ""}`}\n`;
+      }
     } catch (e) {
       daemonLine = `reachable but handshake failed: ${e instanceof Error ? e.message : e}`;
     }
@@ -59,6 +65,7 @@ async function doctor(): Promise<number> {
   w(`  [${mark(binOk)}] llama-server  ${config.inference.llamaServerBin}`);
   w(`  [${mark(true)}] socket        ${config.daemon.socketPath}`);
   w(`  [    ] daemon        ${daemonLine}`);
+  if (extra) process.stdout.write(extra);
   w(`  protocol v${IPC_PROTOCOL_VERSION} · gpuLayers ${config.model.gpuLayers} · ctx ${config.model.contextWindow}`);
   if (!modelOk) w("  ! model file missing — set model.path in config.toml");
   if (!binOk) w("  ! llama-server not found — set inference.llamaServerBin");

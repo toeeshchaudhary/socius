@@ -101,7 +101,13 @@ export class DaemonClient {
     });
   }
 
-  health(): Promise<{ modelReady: boolean; modelId: string }> {
+  health(): Promise<{
+    modelReady: boolean;
+    modelId: string;
+    memory?: boolean;
+    tools?: number;
+    mcp?: { name: string; connected: boolean; toolCount: number; error?: string }[];
+  }> {
     return this.request("health");
   }
 

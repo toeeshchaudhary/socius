@@ -1,0 +1,47 @@
+# Socius configuration example.
+# Copy to ~/.config/socius/config.toml and edit. Every value has a built-in
+# default (see packages/config/src/index.ts), so you only need to set overrides.
+# TOML config loading from disk lands in a later milestone; this documents the
+# shape and shows how MCP servers are declared.
+
+[model]
+id = "gemma-4-e4b-it-q4_k_m"
+path = "~/AI/models/gemma-4-E4B-it-Q4_K_M.gguf"
+contextWindow = 4096
+# This 5GB model exceeds 4GB VRAM; partial offload of its E-series arch crashes
+# llama.cpp, so CPU-only is the reliable setting. A smaller model/quant that fits
+# 4GB can raise this.
+gpuLayers = 0
+
+[inference]
+# Reasoning models otherwise spend the whole budget "thinking" and return empty
+# content. Leave false for fast, direct answers.
+thinking = false
+
+[permissions]
+defaultMode = "live"          # dry_run | sandbox | live
+
+[permissions.policy]
+"fs.read"  = "allow"
+"fs.write" = "confirm"        # destructive tools always prompt
+"fs.delete"= "confirm"
+net        = "confirm"
+exec       = "confirm"
+secrets    = "deny"
+
+# --- MCP servers -------------------------------------------------------------
+# Each enabled server is spawned; its tools appear alongside native tools,
+# namespaced "server/tool" (e.g. "filesystem/read_file"). A server that fails to
+# start is skipped — native tools keep working.
+
+[[mcp]]
+name = "filesystem"
+command = "npx"
+args = ["-y", "@modelcontextprotocol/server-filesystem", "/home/toeesh/Documents"]
+enabled = false
+
+[[mcp]]
+name = "demo"
+command = "bun"
+args = ["run", "scripts/mcp-server.ts"]   # the local test server in this repo
+enabled = false

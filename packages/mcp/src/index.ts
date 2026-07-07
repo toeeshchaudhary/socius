@@ -4,18 +4,5 @@
  * the planner cannot distinguish MCP tools from built-ins. Tools are namespaced
  * by server (e.g. "gmail/search").
  */
-import type { McpServerConfig, Result, Tool } from "@socius/core";
-import { error } from "@socius/core";
-
-export interface McpConnection {
-  readonly name: string;
-  listTools(): Promise<Result<readonly Tool[]>>;
-  close(): Promise<void>;
-}
-
-export async function connectMcpServer(cfg: McpServerConfig): Promise<Result<McpConnection>> {
-  return {
-    ok: false,
-    error: error("NOT_IMPLEMENTED", "mcp", `connect '${cfg.name}' (M4).`),
-  };
-}
+export { mcpToolToNative } from "./adapter.ts";
+export { McpManager, type McpServerStatus } from "./manager.ts";

@@ -24,6 +24,7 @@ import type {
 } from "@socius/core";
 import { IPC_PROTOCOL_VERSION, asMemoryId, asRequestId, asTraceId, ok } from "@socius/core";
 import { indexKnowledge } from "@socius/knowledge";
+import { McpManager } from "@socius/mcp";
 import { SqliteMemoryStore } from "@socius/memory";
 import { ConfiguredPolicyEngine } from "@socius/permissions";
 import { GraphPlanner } from "@socius/planner";
@@ -97,6 +98,7 @@ export class Daemon {
   private systemPrompt = "";
   private memory: MemoryStore | null = null;
   private database: SociusDatabase | null = null;
+  private mcp: McpManager | null = null;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private seq = 0;
   private readonly conns = new WeakMap<object, ConnState>();
@@ -141,6 +143,15 @@ export class Daemon {
     // a confirmer bound to that connection's socket (interactive confirmation).
     const registry = new InMemoryToolRegistry();
     for (const t of builtinTools()) registry.register(t);
+
+    // MCP tools are wrapped as native Tools and registered into the same
+    // registry — the planner cannot tell them apart. Resilient: a server that
+    // fails to start is skipped, native tools keep working.
+    if (this.config.mcp.some((s) => s.enabled)) {
+      this.mcp = new McpManager(this.log.child("mcp"));
+      await this.mcp.connectAll(this.config.mcp, registry);
+    }
+
     this.registry = registry;
     this.policy = new ConfiguredPolicyEngine(this.config.permissions.policy);
     this.systemPrompt = await loadSystemPrompt(this.config.promptsDir);
@@ -297,9 +308,21 @@ export class Daemon {
     }
   }
 
-  private async health(): Promise<{ modelReady: boolean; modelId: string; memory: boolean }> {
+  private async health(): Promise<{
+    modelReady: boolean;
+    modelId: string;
+    memory: boolean;
+    tools: number;
+    mcp: { name: string; connected: boolean; toolCount: number; error?: string }[];
+  }> {
     const h = await this.runtime.backend().health();
-    return { modelReady: h.healthy, modelId: this.config.model.id, memory: this.memory !== null };
+    return {
+      modelReady: h.healthy,
+      modelId: this.config.model.id,
+      memory: this.memory !== null,
+      tools: this.registry?.all().length ?? 0,
+      mcp: this.mcp?.status().map((s) => ({ ...s })) ?? [],
+    };
   }
 
   private async remember(params: RememberParams): Promise<{ id: string }> {
@@ -380,6 +403,7 @@ export class Daemon {
   async stop(): Promise<void> {
     if (this.idleTimer) clearTimeout(this.idleTimer);
     this.server?.stop();
+    await this.mcp?.close();
     await this.runtime.stop();
     this.database?.close();
     await rm(this.config.daemon.socketPath, { force: true }).catch(() => {});
