@@ -77,14 +77,35 @@ confirm round-trip (file written iff approved) is covered by hermetic tests.
 *Live-verified:* configured a local stdio MCP server; the model called its tool and
 answered with a value only that server knew ("Falcon-Nine").
 
-## M5 — GUI & voice (optional)
+## M3b — polish ✅ (done, live-verified)
 
-- React app (`apps/gui`) over the **same** daemon/IPC — no new brain, just another client.
-- Optional voice input/output as an alternate CLI front-end.
+- ✅ Per-tool + per-path policy overrides (deny wins; trusted prefix downgrades
+  confirm→allow; confirm tightens allow).
+- ✅ `git.add` + `git.commit` (destructive). *Live:* the model chained add→commit,
+  each requesting confirmation with its reasoning shown, and created a real commit.
+- ✅ Reflect: on a tool failure the graph loops so `decide()` can self-correct;
+  bounded by `maxToolCalls`.
+- ✅ Fix: compact tool listing in the decide slot (full schemas overflowed context
+  once large MCP tools were registered).
 
-## M6 — Long-running & proactive
+## M4b — remote MCP + config ✅ (done, live-verified)
+
+- ✅ TOML config loader (`~/.config/socius/config.toml`), deep-merged over defaults,
+  with `${ENV}` expansion for secrets.
+- ✅ HTTP/SSE MCP transport (`StreamableHTTPClientTransport`) with header auth, in
+  addition to stdio. *Live:* connected a remote Composio server (API-key header);
+  the model called `COMPOSIO_SEARCH_TOOLS` over HTTP MCP and summarized the result.
+
+## GUI — dropped
+
+Socius is **CLI-only** by decision. No `apps/gui`. Additional front-ends, if ever, are
+just clients of the same daemon/IPC — but none are planned.
+
+## M6 — Long-running & proactive (future)
 
 - Background agents, scheduled workflows, smart notifications.
+- A two-stage Plan node (select tool by name → fetch its full schema → fill args) so
+  the small model can drive complex multi-step MCP tools (e.g. Composio discover→execute).
 - Possibly Socius *as* an MCP server (expose memory/knowledge to other clients).
 
 ## Sequencing rationale
