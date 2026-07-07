@@ -1,11 +1,20 @@
-# Socius Architecture Documentation
+# Socius Documentation
 
-This is the design record for Socius. It is written to be read by a future contributor (or a
-future version of ourselves) with no prior context. Every hard decision has an ADR under
-[`adr/`](./adr) using the template: **Why / Alternatives considered / Tradeoffs / Long-term
-implications / Why alternatives were rejected.**
+**Using Socius?** Start with the [Usage Guide](./USAGE.md). **Driving the live model / debugging?**
+see the [Runbook](./RUNBOOK.md). **Contributing?** see [CONTRIBUTING.md](../CONTRIBUTING.md).
 
-## Reading order
+The rest of this folder is the **design record** — written to be read by a future contributor with no
+prior context. Every hard decision has an ADR under [`adr/`](./adr) using the template:
+**Why / Alternatives considered / Tradeoffs / Long-term implications / Why alternatives were rejected.**
+
+## User-facing
+
+| Doc | For |
+|-----|-----|
+| [USAGE.md](./USAGE.md) | Every command, config, and workflow |
+| [RUNBOOK.md](./RUNBOOK.md) | Running the live model, tuning, troubleshooting |
+
+## Architecture — reading order
 
 | # | Document | What it covers |
 |---|----------|----------------|
