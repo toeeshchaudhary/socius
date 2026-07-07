@@ -18,6 +18,7 @@ import type {
   TraceId,
 } from "@socius/core";
 import { IPC_PROTOCOL_VERSION, asMemoryId, asRequestId, asTraceId } from "@socius/core";
+import { indexKnowledge } from "@socius/knowledge";
 import { SqliteMemoryStore } from "@socius/memory";
 import { DirectPlanner } from "@socius/planner";
 import { SociusDatabase } from "@socius/storage";
@@ -160,6 +161,12 @@ export class Daemon {
         case "mem.forget":
           socket.write(response(id, await this.memForget((msg.params as { id: string }).id)));
           break;
+        case "knowledge.index":
+          socket.write(response(id, await this.knowledgeIndex()));
+          break;
+        case "knowledge.search":
+          socket.write(response(id, await this.knowledgeSearch((msg.params as { text: string }).text)));
+          break;
         case "shutdown":
           socket.write(response(id, { ok: true }));
           await this.stop();
@@ -259,6 +266,25 @@ export class Daemon {
     const r = await this.memory.forget(asMemoryId(id));
     if (!r.ok) throw r.error;
     return { ok: true };
+  }
+
+  private async knowledgeIndex(): Promise<{ files: number; chunks: number }> {
+    if (!this.memory) throw new Error("memory is not available");
+    const r = await indexKnowledge(this.config.storage.knowledgeDir, this.memory);
+    if (!r.ok) throw r.error;
+    return r.value;
+  }
+
+  private async knowledgeSearch(text: string): Promise<{ results: { content: string; ref?: string }[] }> {
+    if (!this.memory) throw new Error("memory is not available");
+    const r = await this.memory.retrieve({ text, kinds: ["knowledge"] });
+    if (!r.ok) throw r.error;
+    return {
+      results: r.value.map((m) => ({
+        content: m.memory.content,
+        ...(m.memory.source.ref ? { ref: m.memory.source.ref } : {}),
+      })),
+    };
   }
 
   private armIdleTimer(): void {

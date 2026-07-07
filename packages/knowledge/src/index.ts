@@ -4,7 +4,7 @@
  * todos,architecture,meetings,ideas,experiments}. Files are canonical; the
  * SQLite index is derived and rebuildable. A file-watcher keeps it fresh.
  */
-import { type Result, error } from "@socius/core";
+export { indexKnowledge, type IndexResult } from "./indexer.ts";
 
 export const KNOWLEDGE_FOLDERS = [
   "projects",
@@ -18,14 +18,3 @@ export const KNOWLEDGE_FOLDERS = [
 ] as const;
 
 export type KnowledgeFolder = (typeof KNOWLEDGE_FOLDERS)[number];
-
-export interface KnowledgeDoc {
-  readonly path: string;
-  readonly folder: KnowledgeFolder;
-  readonly frontmatter: Readonly<Record<string, unknown>>;
-  readonly body: string;
-}
-
-export async function indexKnowledge(_dir: string): Promise<Result<number>> {
-  return { ok: false, error: error("NOT_IMPLEMENTED", "knowledge", "indexKnowledge (M2).") };
-}

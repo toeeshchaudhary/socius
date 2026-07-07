@@ -5,6 +5,7 @@
     "": {
       "name": "socius",
       "dependencies": {
+        "gray-matter": "^4.0.3",
         "sqlite-vec": "^0.1.9",
       },
       "devDependencies": {

@@ -126,6 +126,14 @@ export class DaemonClient {
     return this.request("mem.forget", { id });
   }
 
+  knowledgeIndex(): Promise<{ files: number; chunks: number }> {
+    return this.request("knowledge.index");
+  }
+
+  knowledgeSearch(text: string): Promise<{ results: { content: string; ref?: string }[] }> {
+    return this.request("knowledge.search", { text });
+  }
+
   shutdown(): Promise<unknown> {
     return this.request("shutdown");
   }

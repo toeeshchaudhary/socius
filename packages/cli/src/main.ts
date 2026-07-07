@@ -89,6 +89,39 @@ async function mem(args: readonly string[]): Promise<number> {
   }
 }
 
+async function knowledge(args: readonly string[]): Promise<number> {
+  const sub = args[0];
+  const config = defaultConfig(resolvePaths());
+  const client = await ensureDaemon(config);
+  try {
+    if (sub === "index") {
+      const { files, chunks } = await client.knowledgeIndex();
+      process.stdout.write(`indexed ${files} file(s) into ${chunks} chunk(s)\n`);
+      return 0;
+    }
+    if (sub === "search") {
+      const q = args.slice(1).join(" ").trim();
+      if (!q) {
+        process.stderr.write("usage: socius knowledge search <query>\n");
+        return 2;
+      }
+      const { results } = await client.knowledgeSearch(q);
+      if (results.length === 0) {
+        process.stdout.write("(no matches — run `socius knowledge index` first)\n");
+        return 0;
+      }
+      for (const r of results) {
+        process.stdout.write(`• ${r.ref ?? "?"}\n  ${r.content.replace(/\n/g, " ").slice(0, 120)}\n`);
+      }
+      return 0;
+    }
+    process.stderr.write("usage: socius knowledge [index | search <query>]\n");
+    return 2;
+  } finally {
+    client.close();
+  }
+}
+
 async function restart(): Promise<number> {
   const config = defaultConfig(resolvePaths());
   const client = await DaemonClient.connect(config.daemon.socketPath);
@@ -134,6 +167,7 @@ async function main(argv: readonly string[]): Promise<number> {
   if (command === "restart") return restart();
   if (command === "remember") return remember(args.slice(1).join(" ").trim());
   if (command === "mem") return mem(args.slice(1));
+  if (command === "knowledge") return knowledge(args.slice(1));
 
   const input = args.join(" ").trim();
   const stdin = await readStdin();
