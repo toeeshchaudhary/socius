@@ -71,6 +71,7 @@ export function defaultConfig(paths: SociusPaths = resolvePaths()): SociusConfig
       traces: true,
     },
     mcp: [],
+    schedules: [],
     promptsDir: paths.promptsDir,
   };
 }

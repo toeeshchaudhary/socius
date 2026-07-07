@@ -93,6 +93,21 @@ export interface StorageConfig {
   readonly knowledgeDir: string;
 }
 
+/**
+ * A background task: run `prompt` on a schedule and (optionally) send a desktop
+ * notification with the result. Provide either `everyMinutes` or `dailyAt`.
+ */
+export interface ScheduleConfig {
+  readonly name: string;
+  readonly prompt: string;
+  readonly enabled: boolean;
+  readonly everyMinutes?: number;
+  /** Local time "HH:MM" for a once-a-day run. */
+  readonly dailyAt?: string;
+  /** Send a desktop notification with the result (default true). */
+  readonly notify?: boolean;
+}
+
 export interface SociusConfig {
   readonly model: ModelConfig;
   readonly inference: InferenceConfig;
@@ -102,5 +117,6 @@ export interface SociusConfig {
   readonly permissions: PermissionsConfig;
   readonly logging: LoggingConfig;
   readonly mcp: readonly McpServerConfig[];
+  readonly schedules: readonly ScheduleConfig[];
   readonly promptsDir: string;
 }

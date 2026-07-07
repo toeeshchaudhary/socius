@@ -45,3 +45,21 @@ name = "demo"
 command = "bun"
 args = ["run", "scripts/mcp-server.ts"]   # the local test server in this repo
 enabled = false
+
+# --- Scheduled background tasks (M6) -----------------------------------------
+# Each enabled schedule runs its prompt on a timer and (by default) sends a
+# desktop notification with the result (notify-send / dunst). Provide either
+# `everyMinutes` or `dailyAt = "HH:MM"`. Run one now with `socius schedule run <name>`.
+
+[[schedules]]
+name = "morning"
+prompt = "Summarize today's important emails and calendar events, plus any uncommitted git changes. Short bullets."
+dailyAt = "08:00"
+enabled = false
+notify = true
+
+[[schedules]]
+name = "standup"
+prompt = "Summarize what changed in this repo in the last day (git log)."
+everyMinutes = 240
+enabled = false

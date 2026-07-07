@@ -209,6 +209,36 @@ async function morning(): Promise<number> {
   return ask(MORNING_PROMPT, undefined);
 }
 
+async function schedule(args: readonly string[]): Promise<number> {
+  const sub = args[0];
+  const config = loadConfig(resolvePaths());
+  const client = await ensureDaemon(config);
+  try {
+    if (sub === "run") {
+      const name = args[1];
+      if (!name) {
+        process.stderr.write("usage: socius schedule run <name>\n");
+        return 2;
+      }
+      const { answer } = await client.scheduleRun(name);
+      process.stdout.write(`${answer}\n`);
+      return 0;
+    }
+    const { schedules } = await client.scheduleList();
+    if (schedules.length === 0) {
+      process.stdout.write("(no schedules — add [[schedules]] entries to config.toml)\n");
+      return 0;
+    }
+    for (const s of schedules) {
+      const when = s.everyMinutes ? `every ${s.everyMinutes}m` : s.dailyAt ? `daily at ${s.dailyAt}` : "manual";
+      process.stdout.write(`${s.enabled ? "●" : "○"} ${s.name.padEnd(16)} ${when}\n`);
+    }
+    return 0;
+  } finally {
+    client.close();
+  }
+}
+
 async function restart(): Promise<number> {
   const config = loadConfig(resolvePaths());
   const client = await DaemonClient.connect(config.daemon.socketPath);
@@ -258,6 +288,7 @@ async function main(argv: readonly string[]): Promise<number> {
   if (command === "knowledge") return knowledge(args.slice(1));
   if (command === "trace") return trace(args.slice(1));
   if (command === "morning") return morning();
+  if (command === "schedule") return schedule(args.slice(1));
 
   const input = args.join(" ").trim();
   const stdin = await readStdin();

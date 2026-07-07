@@ -260,3 +260,44 @@ describe("Daemon memory ops (show/edit/forget by id-prefix)", () => {
     await expect(rpc(sock, "mem.show", { id: "deadbeef" })).rejects.toThrow(/no memory/);
   });
 });
+
+describe("Daemon schedules (M6)", () => {
+  let dir: string;
+  let daemon: Daemon;
+  let sock: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "socius-sched-"));
+    const base = defaultConfig();
+    const config: SociusConfig = {
+      ...base,
+      daemon: { ...base.daemon, socketPath: join(dir, "sock"), pidPath: join(dir, "pid") },
+      logging: { ...base.logging, dir, level: "error" },
+      promptsDir: join(dir, "prompts"),
+      schedules: [{ name: "brief", prompt: "give me a briefing", enabled: true, notify: false }],
+    };
+    sock = config.daemon.socketPath;
+    const log = new ConsoleLogger({ level: "error", subsystem: "daemon" });
+    daemon = new Daemon(config, log, new FakeRuntime(["scheduled ", "briefing"]));
+    await daemon.start();
+  });
+  afterEach(async () => {
+    await daemon.stop();
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test("schedule.list shows configured schedules", async () => {
+    const r = (await rpc(sock, "schedule.list", {})) as { schedules: { name: string; enabled: boolean }[] };
+    expect(r.schedules).toHaveLength(1);
+    expect(r.schedules[0]!.name).toBe("brief");
+  });
+
+  test("schedule.run executes the prompt and returns the answer", async () => {
+    const r = (await rpc(sock, "schedule.run", { name: "brief" })) as { answer: string };
+    expect(r.answer).toBe("scheduled briefing");
+  });
+
+  test("running an unknown schedule errors", async () => {
+    await expect(rpc(sock, "schedule.run", { name: "nope" })).rejects.toThrow(/no schedule/);
+  });
+});

@@ -108,6 +108,7 @@ export class Daemon {
   private readonly conns = new WeakMap<object, ConnState>();
   private readonly watchers: FSWatcher[] = [];
   private readonly debounces = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly scheduleTimers: ReturnType<typeof setTimeout>[] = [];
 
   constructor(
     private config: SociusConfig,
@@ -175,7 +176,81 @@ export class Daemon {
     this.armIdleTimer();
     this.installSignalHandlers();
     this.setupWatchers();
+    this.setupSchedules();
     this.log.info("sociusd ready", { socket: socketPath, model: this.config.model.id });
+  }
+
+  // --- Scheduled background tasks (M6) ---
+
+  private setupSchedules(): void {
+    for (const s of this.config.schedules) {
+      if (!s.enabled) continue;
+      if (s.everyMinutes && s.everyMinutes > 0) {
+        this.scheduleTimers.push(setInterval(() => void this.runSchedule(s.name), s.everyMinutes * 60_000));
+        this.log.info("schedule armed", { name: s.name, everyMinutes: s.everyMinutes });
+      } else if (s.dailyAt) {
+        this.armDaily(s.name, s.dailyAt);
+      }
+    }
+  }
+
+  private armDaily(name: string, hhmm: string): void {
+    const [h, m] = hhmm.split(":").map(Number);
+    if (h === undefined || m === undefined || Number.isNaN(h) || Number.isNaN(m)) return;
+    const now = new Date();
+    const next = new Date(now);
+    next.setHours(h, m, 0, 0);
+    if (next.getTime() <= now.getTime()) next.setDate(next.getDate() + 1);
+    const delay = next.getTime() - now.getTime();
+    this.scheduleTimers.push(
+      setTimeout(() => {
+        void this.runSchedule(name);
+        this.armDaily(name, hhmm); // reschedule for tomorrow
+      }, delay),
+    );
+    this.log.info("schedule armed", { name, dailyAt: hhmm, inMinutes: Math.round(delay / 60_000) });
+  }
+
+  private async runSchedule(name: string): Promise<string> {
+    const s = this.config.schedules.find((x) => x.name === name);
+    if (!s) throw new Error(`no schedule '${name}'`);
+    this.log.info("running schedule", { name });
+    const answer = await this.runInternal(s.prompt);
+    if (s.notify !== false) this.notify(`Socius — ${name}`, answer.slice(0, 400) || "(no output)");
+    return answer;
+  }
+
+  /** Run a prompt through the planner with no client (destructive tools auto-fail). */
+  private async runInternal(input: string): Promise<string> {
+    if (!this.registry || !this.policy) return "";
+    const runner = new ToolRunner(this.policy); // no confirmer -> confirm-required tools fail safely
+    const planner = new GraphPlanner({
+      backend: this.runtime.backend(),
+      systemPrompt: this.systemPrompt,
+      tools: this.registry,
+      runner,
+      mode: this.config.permissions.defaultMode,
+      traceSink: this.traceSink,
+      ...(this.memory ? { memory: this.memory, memoryTokenBudget: this.config.memory.defaultTokenBudget } : {}),
+    });
+    this.seq += 1;
+    let out = "";
+    for await (const ev of planner.run({
+      requestId: asRequestId(`sched${this.seq}`),
+      traceId: asTraceId(`sched${this.seq}`) as TraceId,
+      input,
+    })) {
+      if (ev.type === "token" && ev.token) out += ev.token;
+    }
+    return out;
+  }
+
+  private notify(title: string, body: string): void {
+    try {
+      Bun.spawn(["notify-send", "-a", "socius", title, body], { stdout: "ignore", stderr: "ignore" });
+    } catch {
+      this.log.debug("notify-send unavailable");
+    }
   }
 
   /** Watch config.toml (hot-reload safe sections) and the knowledge base (auto-reindex). */
@@ -325,6 +400,19 @@ export class Daemon {
           break;
         case "knowledge.search":
           socket.write(response(id, await this.knowledgeSearch((msg.params as { text: string }).text)));
+          break;
+        case "schedule.list":
+          socket.write(response(id, {
+            schedules: this.config.schedules.map((s) => ({
+              name: s.name,
+              enabled: s.enabled,
+              ...(s.everyMinutes ? { everyMinutes: s.everyMinutes } : {}),
+              ...(s.dailyAt ? { dailyAt: s.dailyAt } : {}),
+            })),
+          }));
+          break;
+        case "schedule.run":
+          socket.write(response(id, { answer: await this.runSchedule((msg.params as { name: string }).name) }));
           break;
         case "shutdown":
           socket.write(response(id, { ok: true }));
@@ -538,6 +626,7 @@ export class Daemon {
     if (this.idleTimer) clearTimeout(this.idleTimer);
     for (const w of this.watchers) w.close();
     for (const t of this.debounces.values()) clearTimeout(t);
+    for (const t of this.scheduleTimers) clearInterval(t);
     this.server?.stop();
     await this.mcp?.close();
     await this.runtime.stop();

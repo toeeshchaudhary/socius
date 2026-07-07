@@ -165,6 +165,14 @@ export class DaemonClient {
     return this.request("knowledge.search", { text });
   }
 
+  scheduleList(): Promise<{ schedules: { name: string; enabled: boolean; everyMinutes?: number; dailyAt?: string }[] }> {
+    return this.request("schedule.list");
+  }
+
+  scheduleRun(name: string): Promise<{ answer: string }> {
+    return this.request("schedule.run", { name });
+  }
+
   shutdown(): Promise<unknown> {
     return this.request("shutdown");
   }
