@@ -131,8 +131,12 @@ export class GraphPlanner implements Planner {
     outcomes: readonly ToolOutcome[],
   ): Promise<Decision> {
     if (tools.length === 0) return { action: "answer" };
+    // Compact listing: name + short description + param names only. Including full
+    // JSON Schemas here overflows the context once tools (e.g. MCP) have large
+    // schemas. The model fills args from param names; invalid args are caught by
+    // the tool and handled by the reflect loop.
     const toolList = tools
-      .map((t) => `- ${t.name}: ${t.description} inputSchema=${JSON.stringify(t.inputSchema)}`)
+      .map((t) => `- ${t.name}: ${clip(t.description, 140)} (params: ${paramNames(t.inputSchema) || "none"})`)
       .join("\n");
     const priorResults = outcomes.length
       ? `\nTool results so far:\n${outcomes.map((o) => `- ${o.tool}: ${o.summary}`).join("\n")}`
@@ -156,6 +160,15 @@ export class GraphPlanner implements Planner {
     );
     return decision ?? { action: "answer" };
   }
+}
+
+function clip(s: string, n: number): string {
+  return s.length > n ? `${s.slice(0, n)}…` : s;
+}
+
+function paramNames(schema: unknown): string {
+  const props = (schema as { properties?: Record<string, unknown> })?.properties;
+  return props ? Object.keys(props).join(", ") : "";
 }
 
 function buildContext(memory: string, outcomes: readonly ToolOutcome[]): string {
