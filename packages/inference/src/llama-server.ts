@@ -28,6 +28,8 @@ export class LlamaServerProcess {
   private proc: Bun.Subprocess | null = null;
   private restarts = 0;
   private stopping = false;
+  /** True when we attached to a server someone else started; we must not kill it. */
+  private adopted = false;
   private readonly baseUrlValue: string;
 
   constructor(private readonly opts: LlamaServerOptions) {
@@ -52,6 +54,14 @@ export class LlamaServerProcess {
 
   async start(): Promise<void> {
     this.stopping = false;
+    // Idempotent: if a healthy server is already listening on our host:port
+    // (e.g. started manually, or a leftover from a prior run), adopt it rather
+    // than spawning a duplicate that would fail to bind the port.
+    if (await this.healthy()) {
+      this.adopted = true;
+      this.opts.logger.info("adopting existing llama-server", { port: this.opts.port });
+      return;
+    }
     this.spawn();
     await this.waitForHealth();
   }
@@ -109,6 +119,8 @@ export class LlamaServerProcess {
 
   async stop(): Promise<void> {
     this.stopping = true;
+    // Never kill a server we merely adopted — we didn't start it.
+    if (this.adopted) return;
     const p = this.proc;
     if (!p) return;
     p.kill("SIGTERM");

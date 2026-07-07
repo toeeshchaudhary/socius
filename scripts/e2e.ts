@@ -14,6 +14,7 @@ import { DaemonClient } from "../packages/cli/src/client.ts";
 import { createDaemon } from "../packages/daemon/src/index.ts";
 
 const prompt = process.argv.slice(2).join(" ") || "Reply in one short sentence confirming you are online.";
+const stdin = process.stdin.isTTY ? undefined : (await Bun.stdin.text()).trim() || undefined;
 
 const config = defaultConfig(resolvePaths());
 const created = createDaemon(config);
@@ -34,7 +35,7 @@ process.stderr.write(`[e2e] handshake ok: protocol=${hs.protocolVersion} model=$
 process.stderr.write(`[e2e] prompt: ${prompt}\n[e2e] --- streamed answer ---\n`);
 const t1 = Date.now();
 let tokens = 0;
-await client.infer({ input: prompt, maxTokens: 64 }, (text) => {
+await client.infer({ input: prompt, ...(stdin ? { stdin } : {}), maxTokens: 96 }, (text) => {
   tokens += 1;
   process.stdout.write(text);
 });

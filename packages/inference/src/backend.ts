@@ -46,23 +46,32 @@ export class LlamaCppBackend implements InferenceBackend {
     }
 
     // Parse the SSE stream: lines of `data: {json}` terminated by `data: [DONE]`.
+    // Use an explicit reader (async-iterating a ReadableStream is unreliable in
+    // Bun and drops chunks); read() in a loop is the portable, correct way.
+    const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
-    for await (const bytes of res.body as unknown as AsyncIterable<Uint8Array>) {
-      buffer += decoder.decode(bytes, { stream: true });
-      let nl: number;
-      while ((nl = buffer.indexOf("\n")) !== -1) {
-        const line = buffer.slice(0, nl).trim();
-        buffer = buffer.slice(nl + 1);
-        if (!line.startsWith("data:")) continue;
-        const payload = line.slice(5).trim();
-        if (payload === "[DONE]") {
-          yield { type: "done", text: "" };
-          return;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let nl: number;
+        while ((nl = buffer.indexOf("\n")) !== -1) {
+          const line = buffer.slice(0, nl).trim();
+          buffer = buffer.slice(nl + 1);
+          if (!line.startsWith("data:")) continue;
+          const payload = line.slice(5).trim();
+          if (payload === "[DONE]") {
+            yield { type: "done", text: "" };
+            return;
+          }
+          const token = extractDelta(payload);
+          if (token) yield { type: "token", text: token };
         }
-        const token = extractDelta(payload);
-        if (token) yield { type: "token", text: token };
       }
+    } finally {
+      reader.releaseLock();
     }
     yield { type: "done", text: "" };
   }
