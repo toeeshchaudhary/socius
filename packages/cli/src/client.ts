@@ -105,10 +105,27 @@ export class DaemonClient {
     return this.request("health");
   }
 
-  /** Stream an inference. `onToken` fires per token; resolves when done. */
-  async infer(params: InferParams, onToken: (text: string) => void): Promise<void> {
+  /**
+   * Stream an inference. `onToken` fires per token. `onConfirm`, if provided, is
+   * asked to approve a tool that requires confirmation; without it, such tools
+   * are auto-denied (safe default for non-interactive use).
+   */
+  async infer(
+    params: InferParams,
+    onToken: (text: string) => void,
+    onConfirm?: (prompt: string) => Promise<boolean>,
+  ): Promise<void> {
     this.onNotify = (n) => {
-      if (n.kind === "token") onToken(n.text);
+      if (n.kind === "token") {
+        onToken(n.text);
+      } else if (n.kind === "confirm") {
+        const decide = onConfirm ?? (async () => false);
+        void decide(n.prompt).then((approved) => {
+          this.socket.write(
+            `${JSON.stringify({ jsonrpc: "2.0", method: "confirm.response", params: { id: n.id, approved } })}\n`,
+          );
+        });
+      }
     };
     await this.request("infer", params);
     this.onNotify = null;

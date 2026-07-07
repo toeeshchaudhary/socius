@@ -4,11 +4,33 @@
  * daemon, and streams the answer to stdout. Diagnostics go to stderr so piped
  * stdout stays clean.
  */
-import { existsSync } from "node:fs";
+import { createReadStream, existsSync } from "node:fs";
+import { createInterface } from "node:readline";
 import { IPC_PROTOCOL_VERSION } from "@socius/core";
 import { defaultConfig, resolvePaths } from "@socius/config";
 import { DaemonClient, ensureDaemon } from "./client.ts";
 import { readStdin } from "./index.ts";
+
+/**
+ * Ask the user to approve a tool. Reads from /dev/tty (not stdin, which may be a
+ * pipe). If no terminal is available, deny — Socius never auto-runs a destructive
+ * tool in a non-interactive context.
+ */
+async function promptConfirm(prompt: string): Promise<boolean> {
+  if (!existsSync("/dev/tty")) {
+    process.stderr.write(`socius: ${prompt}\nsocius: no terminal to confirm — denying.\n`);
+    return false;
+  }
+  return new Promise((resolve) => {
+    const input = createReadStream("/dev/tty");
+    const rl = createInterface({ input, output: process.stderr });
+    rl.question(`\nSocius wants to run: ${prompt}\n  [y] run   [N] skip  > `, (answer) => {
+      rl.close();
+      input.close();
+      resolve(/^y(es)?$/i.test(answer.trim()));
+    });
+  });
+}
 
 async function doctor(): Promise<number> {
   const paths = resolvePaths();
@@ -153,6 +175,7 @@ async function ask(input: string, stdin: string | undefined): Promise<number> {
   await client.infer(
     { input, ...(stdin ? { stdin } : {}) },
     (text) => process.stdout.write(text),
+    promptConfirm,
   );
   if (process.stdout.isTTY) process.stdout.write("\n");
   client.close();

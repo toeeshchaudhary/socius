@@ -6,6 +6,7 @@ import { existsSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type {
+  ConfirmationProvider,
   Embedder,
   HandshakeRequest,
   HandshakeResponse,
@@ -13,12 +14,15 @@ import type {
   Logger,
   MemoryKind,
   MemoryStore,
-  Planner,
+  PermissionRequest,
+  PolicyEngine,
   RequestId,
+  Result,
   SociusConfig,
+  ToolRegistry,
   TraceId,
 } from "@socius/core";
-import { IPC_PROTOCOL_VERSION, asMemoryId, asRequestId, asTraceId } from "@socius/core";
+import { IPC_PROTOCOL_VERSION, asMemoryId, asRequestId, asTraceId, ok } from "@socius/core";
 import { indexKnowledge } from "@socius/knowledge";
 import { SqliteMemoryStore } from "@socius/memory";
 import { ConfiguredPolicyEngine } from "@socius/permissions";
@@ -32,6 +36,43 @@ import { LineBuffer, type WireRequest, errorResponse, notify, response } from ".
 interface ConnState {
   buffer: LineBuffer;
   current: AbortController | null;
+  confirmer: IpcConfirmer | null;
+}
+
+/**
+ * Bridges a tool's confirmation request to the CLI over the socket: emits a
+ * `confirm` notification and awaits the client's `confirm.response`. This is how
+ * Principle #3 is enforced interactively — a destructive tool blocks here until
+ * the user answers, and there is no path around it.
+ */
+class IpcConfirmer implements ConfirmationProvider {
+  private readonly pending = new Map<string, (approved: boolean) => void>();
+  private counter = 0;
+  constructor(private readonly socket: Sock) {}
+
+  confirm(req: PermissionRequest): Promise<Result<boolean>> {
+    const id = `cf${++this.counter}`;
+    const resources = req.resources?.length ? ` [${req.resources.join(", ")}]` : "";
+    const prompt = `${req.toolName}${resources} — ${req.reasoning}`;
+    return new Promise((resolve) => {
+      this.pending.set(id, (approved) => resolve(ok(approved)));
+      this.socket.write(notify({ kind: "confirm", id, prompt }));
+    });
+  }
+
+  resolve(id: string, approved: boolean): void {
+    const fn = this.pending.get(id);
+    if (fn) {
+      this.pending.delete(id);
+      fn(approved);
+    }
+  }
+
+  /** Deny any still-pending confirmations (e.g. connection closed mid-prompt). */
+  denyAll(): void {
+    for (const fn of this.pending.values()) fn(false);
+    this.pending.clear();
+  }
 }
 
 interface RememberParams {
@@ -51,7 +92,9 @@ type Sock = any;
 export class Daemon {
   private server: ReturnType<typeof Bun.listen> | null = null;
   private modelReady = false;
-  private planner: Planner | null = null;
+  private registry: ToolRegistry | null = null;
+  private policy: PolicyEngine | null = null;
+  private systemPrompt = "";
   private memory: MemoryStore | null = null;
   private database: SociusDatabase | null = null;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -93,25 +136,14 @@ export class Daemon {
       }
     }
 
-    // Tools + permissions: a registry of native tools, gated by the policy engine
-    // through the ToolRunner. No interactive confirmer yet, so a confirm-required
-    // tool safely fails (the graph degrades to answering) rather than auto-running.
+    // Tools + permissions: a registry of native tools and the policy engine.
+    // The ToolRunner + planner are built per-request in infer() so each can carry
+    // a confirmer bound to that connection's socket (interactive confirmation).
     const registry = new InMemoryToolRegistry();
     for (const t of builtinTools()) registry.register(t);
-    const policy = new ConfiguredPolicyEngine(this.config.permissions.policy);
-    const runner = new ToolRunner(policy);
-
-    const systemPrompt = await loadSystemPrompt(this.config.promptsDir);
-    this.planner = new GraphPlanner({
-      backend: this.runtime.backend(),
-      systemPrompt,
-      tools: registry,
-      runner,
-      mode: this.config.permissions.defaultMode,
-      ...(this.memory
-        ? { memory: this.memory, memoryTokenBudget: this.config.memory.defaultTokenBudget }
-        : {}),
-    });
+    this.registry = registry;
+    this.policy = new ConfiguredPolicyEngine(this.config.permissions.policy);
+    this.systemPrompt = await loadSystemPrompt(this.config.promptsDir);
 
     // A stale socket file from a previous crash would make bind fail; the CLI's
     // spawn-lock guarantees we are the only daemon starting, so it is safe to clear.
@@ -127,7 +159,7 @@ export class Daemon {
       unix: socketPath,
       socket: {
         open: (socket: Sock) => {
-          this.conns.set(socket, { buffer: new LineBuffer(), current: null });
+          this.conns.set(socket, { buffer: new LineBuffer(), current: null, confirmer: null });
         },
         data: (socket: Sock, data: Uint8Array) => {
           const state = this.conns.get(socket);
@@ -137,7 +169,9 @@ export class Daemon {
           }
         },
         close: (socket: Sock) => {
-          this.conns.get(socket)?.current?.abort();
+          const s = this.conns.get(socket);
+          s?.current?.abort();
+          s?.confirmer?.denyAll();
           this.conns.delete(socket);
         },
         error: (socket: Sock, err: Error) => {
@@ -163,6 +197,11 @@ export class Daemon {
           state.current?.abort();
           socket.write(response(id, { cancelled: true }));
           break;
+        case "confirm.response": {
+          const p = msg.params as { id: string; approved: boolean };
+          state.confirmer?.resolve(p.id, p.approved === true);
+          break; // no response — this is a client-initiated notification
+        }
         case "health":
           socket.write(response(id, await this.health()));
           break;
@@ -209,12 +248,29 @@ export class Daemon {
     id: RequestId,
     params: InferParams,
   ): Promise<void> {
-    if (!this.planner) {
-      socket.write(errorResponse(id, -32000, "planner not ready"));
+    if (!this.registry || !this.policy) {
+      socket.write(errorResponse(id, -32000, "daemon not ready"));
       return;
     }
     const controller = new AbortController();
     state.current = controller;
+
+    // Per-request runner + planner carrying a confirmer bound to THIS socket, so
+    // a destructive tool prompts this exact client and blocks until it answers.
+    const confirmer = new IpcConfirmer(socket);
+    state.confirmer = confirmer;
+    const runner = new ToolRunner(this.policy, confirmer);
+    const planner = new GraphPlanner({
+      backend: this.runtime.backend(),
+      systemPrompt: this.systemPrompt,
+      tools: this.registry,
+      runner,
+      mode: params.mode ?? this.config.permissions.defaultMode,
+      ...(this.memory
+        ? { memory: this.memory, memoryTokenBudget: this.config.memory.defaultTokenBudget }
+        : {}),
+    });
+
     this.seq += 1;
     const ctx = {
       requestId: asRequestId(`r${this.seq}`),
@@ -225,7 +281,7 @@ export class Daemon {
       signal: controller.signal,
     };
     try {
-      for await (const ev of this.planner.run(ctx)) {
+      for await (const ev of planner.run(ctx)) {
         if (ev.type === "token" && ev.token) socket.write(notify({ kind: "token", text: ev.token }));
         else if (ev.type === "step" && ev.step) socket.write(notify({ kind: "step", label: ev.step.label }));
       }
@@ -235,6 +291,8 @@ export class Daemon {
       const message = err instanceof Error ? err.message : String(err);
       socket.write(errorResponse(id, -32000, message));
     } finally {
+      confirmer.denyAll();
+      state.confirmer = null;
       state.current = null;
     }
   }

@@ -3,8 +3,8 @@
  * `fs.write`/`fs.delete` and are `destructive` (confirmation by default). The
  * capability describes the *effect*, which is what the permission layer governs.
  */
-import { readFile, readdir, stat } from "node:fs/promises";
-import { basename, resolve } from "node:path";
+import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { basename, dirname, resolve } from "node:path";
 import type { Result, Tool, ToolContext, ToolResult } from "@socius/core";
 import { error, ok } from "@socius/core";
 
@@ -43,6 +43,37 @@ export const fsReadTool: Tool = {
       });
     } catch (cause) {
       return { ok: false, error: error("TOOL_FAILED", "tools", `cannot read ${abs}`, { cause }) };
+    }
+  },
+};
+
+export const fsWriteTool: Tool = {
+  name: "fs.write",
+  description: "Write text content to a file, creating or overwriting it. Destructive.",
+  source: "native",
+  inputSchema: {
+    type: "object",
+    properties: {
+      path: { type: "string", description: "File path to write" },
+      content: { type: "string", description: "Text content to write" },
+    },
+    required: ["path", "content"],
+  },
+  outputSchema: { type: "object", properties: { path: { type: "string" }, bytes: { type: "number" } } },
+  capabilities: ["fs.write"],
+  capabilityTags: ["fs", "write", "file"],
+  destructive: true,
+  async invoke(args: unknown, _ctx: ToolContext): Promise<Result<ToolResult>> {
+    const a = args as { path?: unknown; content?: unknown };
+    if (typeof a.path !== "string" || a.path.length === 0) return badInput("`path` (string) is required");
+    if (typeof a.content !== "string") return badInput("`content` (string) is required");
+    const abs = resolve(a.path);
+    try {
+      await mkdir(dirname(abs), { recursive: true });
+      await writeFile(abs, a.content, "utf8");
+      return ok({ data: { path: abs, bytes: Buffer.byteLength(a.content) }, summary: `wrote ${basename(abs)}` });
+    } catch (cause) {
+      return { ok: false, error: error("TOOL_FAILED", "tools", `cannot write ${abs}`, { cause }) };
     }
   },
 };
