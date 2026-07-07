@@ -1,0 +1,10 @@
+{
+  "name": "@socius/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shared contracts: types, interfaces, and errors. Zero runtime dependencies.",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

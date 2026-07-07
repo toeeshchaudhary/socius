@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+.bun/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Models (never commit weights)
+*.gguf
+*.bin
+*.safetensors
+models/
+
+# Runtime / data
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+socius.db*
+logs/
+*.log
+.socius/
+
+# Secrets & local env
+.env
+.env.*
+!.env.example
+secrets.toml
+
+# OS / editor
+.DS_Store
+*.swp
+.idea/
+.vscode/

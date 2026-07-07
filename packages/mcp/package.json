@@ -1,0 +1,12 @@
+{
+  "name": "@socius/mcp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": {
+    "@socius/core": "workspace:*",
+    "@socius/tools": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.12.0"
+  }
+}

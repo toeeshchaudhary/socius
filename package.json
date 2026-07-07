@@ -1,0 +1,28 @@
+{
+  "name": "socius",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A local-first AI operating companion for the terminal.",
+  "license": "MIT",
+  "author": "NerdsForGaming <thesonofdevilhunter1@gmail.com>",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "bun": ">=1.3.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --build --verbose",
+    "test": "bun test",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "socius": "bun run packages/cli/src/main.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "typescript": "^5.7.0",
+    "@types/bun": "^1.3.0"
+  }
+}

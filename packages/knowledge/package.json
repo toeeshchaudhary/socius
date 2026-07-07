@@ -1,0 +1,12 @@
+{
+  "name": "@socius/knowledge",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": {
+    "@socius/core": "workspace:*",
+    "@socius/storage": "workspace:*",
+    "gray-matter": "^4.0.3"
+  }
+}

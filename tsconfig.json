@@ -1,0 +1,18 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/config" },
+    { "path": "packages/logging" },
+    { "path": "packages/storage" },
+    { "path": "packages/inference" },
+    { "path": "packages/memory" },
+    { "path": "packages/knowledge" },
+    { "path": "packages/permissions" },
+    { "path": "packages/tools" },
+    { "path": "packages/mcp" },
+    { "path": "packages/planner" },
+    { "path": "packages/daemon" },
+    { "path": "packages/cli" }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@socius/planner",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "dependencies": {
+    "@socius/core": "workspace:*",
+    "@socius/inference": "workspace:*",
+    "@socius/memory": "workspace:*",
+    "@socius/tools": "workspace:*",
+    "@socius/permissions": "workspace:*"
+  }
+}
