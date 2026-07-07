@@ -3,10 +3,10 @@
  * sociusd entrypoint. Normally lazy-spawned by the CLI, but runnable directly
  * for debugging: `bun run packages/daemon/src/main.ts`.
  */
-import { defaultConfig, resolvePaths } from "@socius/config";
+import { loadConfig, resolvePaths } from "@socius/config";
 import { createDaemon } from "./index.ts";
 
-const config = defaultConfig(resolvePaths());
+const config = loadConfig(resolvePaths());
 const created = createDaemon(config);
 if (!created.ok) {
   process.stderr.write(`sociusd: ${created.error.message}\n`);

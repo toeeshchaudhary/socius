@@ -7,7 +7,7 @@
 import { createReadStream, existsSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { IPC_PROTOCOL_VERSION } from "@socius/core";
-import { defaultConfig, resolvePaths } from "@socius/config";
+import { loadConfig, resolvePaths } from "@socius/config";
 import { DaemonClient, ensureDaemon } from "./client.ts";
 import { readStdin } from "./index.ts";
 
@@ -34,7 +34,7 @@ async function promptConfirm(prompt: string): Promise<boolean> {
 
 async function doctor(): Promise<number> {
   const paths = resolvePaths();
-  const config = defaultConfig(paths);
+  const config = loadConfig(paths);
   const w = (s: string) => process.stdout.write(`${s}\n`);
   const mark = (ok: boolean) => (ok ? "ok  " : "FAIL");
 
@@ -77,7 +77,7 @@ async function remember(text: string): Promise<number> {
     process.stderr.write("usage: socius remember <text>\n");
     return 2;
   }
-  const config = defaultConfig(resolvePaths());
+  const config = loadConfig(resolvePaths());
   const client = await ensureDaemon(config);
   const { id } = await client.remember(text);
   client.close();
@@ -87,7 +87,7 @@ async function remember(text: string): Promise<number> {
 
 async function mem(args: readonly string[]): Promise<number> {
   const sub = args[0];
-  const config = defaultConfig(resolvePaths());
+  const config = loadConfig(resolvePaths());
   const client = await ensureDaemon(config);
   try {
     if (sub === "forget") {
@@ -120,7 +120,7 @@ async function mem(args: readonly string[]): Promise<number> {
 
 async function knowledge(args: readonly string[]): Promise<number> {
   const sub = args[0];
-  const config = defaultConfig(resolvePaths());
+  const config = loadConfig(resolvePaths());
   const client = await ensureDaemon(config);
   try {
     if (sub === "index") {
@@ -152,7 +152,7 @@ async function knowledge(args: readonly string[]): Promise<number> {
 }
 
 async function restart(): Promise<number> {
-  const config = defaultConfig(resolvePaths());
+  const config = loadConfig(resolvePaths());
   const client = await DaemonClient.connect(config.daemon.socketPath);
   if (client) {
     await client.shutdown().catch(() => {});
@@ -165,7 +165,7 @@ async function restart(): Promise<number> {
 }
 
 async function ask(input: string, stdin: string | undefined): Promise<number> {
-  const config = defaultConfig(resolvePaths());
+  const config = loadConfig(resolvePaths());
   const warming = !existsSync(config.daemon.socketPath);
   if (warming && process.stderr.isTTY) process.stderr.write("socius: warming model…\n");
 

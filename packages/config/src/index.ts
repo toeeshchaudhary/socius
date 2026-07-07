@@ -7,6 +7,7 @@ import type { SociusConfig } from "@socius/core";
 import { type SociusPaths, resolvePaths } from "./paths.ts";
 
 export { resolvePaths, type SociusPaths } from "./paths.ts";
+export { loadConfig } from "./load.ts";
 
 /** Built-in defaults, tuned for the 4 GB-VRAM reference machine. */
 export function defaultConfig(paths: SociusPaths = resolvePaths()): SociusConfig {

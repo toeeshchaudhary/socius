@@ -58,12 +58,21 @@ export interface LoggingConfig {
   readonly traces: boolean;
 }
 
+/**
+ * An MCP server, connected either over stdio (a local `command`) or over HTTP (a
+ * remote `url` with optional `headers`, e.g. an API key). Exactly one transport
+ * is used: `url` takes precedence if present, otherwise `command`.
+ */
 export interface McpServerConfig {
   readonly name: string;
-  readonly command: string;
+  readonly enabled: boolean;
+  // stdio transport
+  readonly command?: string;
   readonly args?: readonly string[];
   readonly env?: Readonly<Record<string, string>>;
-  readonly enabled: boolean;
+  // http transport
+  readonly url?: string;
+  readonly headers?: Readonly<Record<string, string>>;
 }
 
 export interface StorageConfig {

@@ -6,6 +6,8 @@
  */
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { Logger, McpServerConfig, ToolRegistry } from "@socius/core";
 import { mcpToolToNative } from "./adapter.ts";
 
@@ -37,15 +39,7 @@ export class McpManager {
 
   private async connectOne(cfg: McpServerConfig, registry: ToolRegistry): Promise<void> {
     try {
-      const env: Record<string, string> = {};
-      for (const [k, v] of Object.entries(process.env)) if (typeof v === "string") env[k] = v;
-      Object.assign(env, cfg.env ?? {});
-
-      const transport = new StdioClientTransport({
-        command: cfg.command,
-        args: [...(cfg.args ?? [])],
-        env,
-      });
+      const transport = this.makeTransport(cfg);
       const client = new Client({ name: "socius", version: "0.0.0" });
       await client.connect(transport);
 
@@ -60,6 +54,23 @@ export class McpManager {
       this.statuses.push({ name: cfg.name, connected: false, toolCount: 0, error: message });
       this.logger.warn("mcp server failed to connect", { server: cfg.name, err: message });
     }
+  }
+
+  /** Pick a transport: HTTP if a `url` is given, otherwise stdio (`command`). */
+  private makeTransport(cfg: McpServerConfig): Transport {
+    // The SDK transport classes implement Transport at runtime; the cast works
+    // around an exactOptionalPropertyTypes mismatch in the SDK's type defs.
+    if (cfg.url) {
+      const t = new StreamableHTTPClientTransport(new URL(cfg.url), {
+        ...(cfg.headers ? { requestInit: { headers: { ...cfg.headers } } } : {}),
+      });
+      return t as unknown as Transport;
+    }
+    if (!cfg.command) throw new Error(`mcp server '${cfg.name}' has neither url nor command`);
+    const env: Record<string, string> = {};
+    for (const [k, v] of Object.entries(process.env)) if (typeof v === "string") env[k] = v;
+    Object.assign(env, cfg.env ?? {});
+    return new StdioClientTransport({ command: cfg.command, args: [...(cfg.args ?? [])], env }) as unknown as Transport;
   }
 
   status(): readonly McpServerStatus[] {
