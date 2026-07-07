@@ -157,6 +157,10 @@ export class DaemonClient {
     return this.request("mem.edit", { id, content });
   }
 
+  memSearch(text: string, k?: number): Promise<{ results: { content: string; kind: string; score: number }[] }> {
+    return this.request("mem.search", { text, ...(k ? { k } : {}) });
+  }
+
   knowledgeIndex(): Promise<{ files: number; chunks: number }> {
     return this.request("knowledge.index");
   }

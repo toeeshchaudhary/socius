@@ -387,6 +387,11 @@ export class Daemon {
         case "mem.forget":
           socket.write(response(id, await this.memForget((msg.params as { id: string }).id)));
           break;
+        case "mem.search": {
+          const p = msg.params as { text: string; k?: number };
+          socket.write(response(id, await this.memSearch(p.text, p.k)));
+          break;
+        }
         case "mem.show":
           socket.write(response(id, await this.memShow((msg.params as { id: string }).id)));
           break;
@@ -572,6 +577,13 @@ export class Daemon {
     const r = await this.memory!.update(id, { content });
     if (!r.ok) throw r.error;
     return { id: r.value.id };
+  }
+
+  private async memSearch(text: string, k?: number): Promise<{ results: { content: string; kind: string; score: number }[] }> {
+    if (!this.memory) throw new Error("memory is not available");
+    const r = await this.memory.retrieve({ text, ...(k ? { k } : {}) });
+    if (!r.ok) throw r.error;
+    return { results: r.value.map((m) => ({ content: m.memory.content, kind: m.memory.kind, score: m.score })) };
   }
 
   /** Resolve a full id or a unique id-prefix (as shown by `mem list`). */

@@ -281,6 +281,12 @@ async function main(argv: readonly string[]): Promise<number> {
   const args = argv.slice(2);
   const command = args[0];
 
+  if (command === "serve") {
+    // MCP server mode — stdin/stdout are the MCP transport, so route before readStdin.
+    const { runMcpServer } = await import("./mcp-server.ts");
+    await runMcpServer();
+    return 0;
+  }
   if (command === "doctor") return doctor();
   if (command === "restart") return restart();
   if (command === "remember") return remember(args.slice(1).join(" ").trim());
@@ -294,9 +300,15 @@ async function main(argv: readonly string[]): Promise<number> {
   const stdin = await readStdin();
   if (!input && !stdin) {
     process.stderr.write("usage: socius <question>   |   <cmd> | socius <question>\n");
-    process.stderr.write(
-      "       socius remember <text> | mem [list|forget <id>] | knowledge [index|search] | trace [n] | doctor | restart\n",
-    );
+    process.stderr.write("commands:\n");
+    process.stderr.write("  remember <text>            save a memory\n");
+    process.stderr.write("  mem [list|show|edit|forget]  inspect/edit memory\n");
+    process.stderr.write("  knowledge [index|search]   Markdown knowledge base\n");
+    process.stderr.write("  morning                    a briefing (git + email/calendar if available)\n");
+    process.stderr.write("  schedule [list|run <name>] background tasks\n");
+    process.stderr.write("  trace [n] [--full]         replay recent model reasoning\n");
+    process.stderr.write("  serve                      run Socius as an MCP server (for other clients)\n");
+    process.stderr.write("  doctor | restart           status / restart the daemon\n");
     return 2;
   }
   return ask(input || "Summarize and explain the following.", stdin);

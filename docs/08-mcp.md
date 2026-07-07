@@ -76,8 +76,17 @@ A flaky Gmail server must never degrade note-taking or `git diff | socius`.
 - **Tradeoff:** a dependency on an external SDK's API. Contained behind our `McpConnection` /
   `McpToolAdapter` seam, so an SDK breaking change touches one package, not the planner.
 
-## Future: Socius as an MCP *server*
+## Socius as an MCP *server* (implemented)
 
-The inverse — exposing Socius's own memory and knowledge as an MCP server so *other* clients can
-query your second brain — is a natural M6+ extension. The tool interface already models the
-surface; it would be a new transport in front of the existing registry, not a redesign.
+The inverse — exposing Socius's own memory and knowledge to *other* MCP clients — ships as
+`socius serve`. It runs an MCP server over stdio that proxies to the running `sociusd` (over the
+same IPC the CLI uses), exposing three tools: `search_memory`, `search_knowledge`, and
+`remember`. State stays owned by the daemon. Add it to any client's MCP config:
+
+```json
+{ "mcpServers": { "socius": { "command": "socius", "args": ["serve"] } } }
+```
+
+Implementation: `packages/cli/src/mcp-server.ts` (`buildSociusMcpServer` builds the server from a
+daemon-client backend; `runMcpServer` wires stdio + lifecycle). Read-only tools declare
+`readOnlyHint`.

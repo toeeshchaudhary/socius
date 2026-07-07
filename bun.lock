@@ -21,9 +21,11 @@
       "name": "@socius/cli",
       "version": "0.0.0",
       "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.29.0",
         "@socius/config": "workspace:*",
         "@socius/core": "workspace:*",
         "@socius/logging": "workspace:*",
+        "zod": "^3.24.0",
       },
     },
     "packages/config": {
