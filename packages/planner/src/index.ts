@@ -14,6 +14,9 @@ import type {
   Planner,
 } from "@socius/core";
 
+export { GraphPlanner, type GraphPlannerDeps } from "./graph.ts";
+export { completeStructured, streamAnswer, parseJson } from "./slots.ts";
+
 export interface DirectPlannerDeps {
   readonly backend: InferenceBackend;
   readonly systemPrompt: string;

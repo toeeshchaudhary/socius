@@ -13,6 +13,7 @@ import type {
   Logger,
   MemoryKind,
   MemoryStore,
+  Planner,
   RequestId,
   SociusConfig,
   TraceId,
@@ -20,8 +21,10 @@ import type {
 import { IPC_PROTOCOL_VERSION, asMemoryId, asRequestId, asTraceId } from "@socius/core";
 import { indexKnowledge } from "@socius/knowledge";
 import { SqliteMemoryStore } from "@socius/memory";
-import { DirectPlanner } from "@socius/planner";
+import { ConfiguredPolicyEngine } from "@socius/permissions";
+import { GraphPlanner } from "@socius/planner";
 import { SociusDatabase } from "@socius/storage";
+import { InMemoryToolRegistry, ToolRunner, builtinTools } from "@socius/tools";
 import { loadSystemPrompt } from "./prompts.ts";
 import type { ModelRuntime } from "./runtime.ts";
 import { LineBuffer, type WireRequest, errorResponse, notify, response } from "./rpc.ts";
@@ -48,7 +51,7 @@ type Sock = any;
 export class Daemon {
   private server: ReturnType<typeof Bun.listen> | null = null;
   private modelReady = false;
-  private planner: DirectPlanner | null = null;
+  private planner: Planner | null = null;
   private memory: MemoryStore | null = null;
   private database: SociusDatabase | null = null;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -90,10 +93,21 @@ export class Daemon {
       }
     }
 
+    // Tools + permissions: a registry of native tools, gated by the policy engine
+    // through the ToolRunner. No interactive confirmer yet, so a confirm-required
+    // tool safely fails (the graph degrades to answering) rather than auto-running.
+    const registry = new InMemoryToolRegistry();
+    for (const t of builtinTools()) registry.register(t);
+    const policy = new ConfiguredPolicyEngine(this.config.permissions.policy);
+    const runner = new ToolRunner(policy);
+
     const systemPrompt = await loadSystemPrompt(this.config.promptsDir);
-    this.planner = new DirectPlanner({
+    this.planner = new GraphPlanner({
       backend: this.runtime.backend(),
       systemPrompt,
+      tools: registry,
+      runner,
+      mode: this.config.permissions.defaultMode,
       ...(this.memory
         ? { memory: this.memory, memoryTokenBudget: this.config.memory.defaultTokenBudget }
         : {}),
