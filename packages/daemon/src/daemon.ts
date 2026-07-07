@@ -4,7 +4,7 @@
  */
 import { existsSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import type {
   ConfirmationProvider,
   Embedder,
@@ -21,9 +21,11 @@ import type {
   SociusConfig,
   ToolRegistry,
   TraceId,
+  TraceSink,
 } from "@socius/core";
 import { IPC_PROTOCOL_VERSION, asMemoryId, asRequestId, asTraceId, ok } from "@socius/core";
 import { indexKnowledge } from "@socius/knowledge";
+import { FileTraceSink, NullTraceSink } from "@socius/logging";
 import { McpManager } from "@socius/mcp";
 import { SqliteMemoryStore } from "@socius/memory";
 import { ConfiguredPolicyEngine } from "@socius/permissions";
@@ -99,6 +101,7 @@ export class Daemon {
   private memory: MemoryStore | null = null;
   private database: SociusDatabase | null = null;
   private mcp: McpManager | null = null;
+  private traceSink: TraceSink = new NullTraceSink();
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private seq = 0;
   private readonly conns = new WeakMap<object, ConnState>();
@@ -158,6 +161,9 @@ export class Daemon {
       ...(this.config.permissions.paths ? { paths: [...this.config.permissions.paths] } : {}),
     });
     this.systemPrompt = await loadSystemPrompt(this.config.promptsDir);
+    if (this.config.logging.traces) {
+      this.traceSink = new FileTraceSink(join(this.config.logging.dir, "traces.jsonl"));
+    }
 
     // A stale socket file from a previous crash would make bind fail; the CLI's
     // spawn-lock guarantees we are the only daemon starting, so it is safe to clear.
@@ -280,6 +286,7 @@ export class Daemon {
       tools: this.registry,
       runner,
       mode: params.mode ?? this.config.permissions.defaultMode,
+      traceSink: this.traceSink,
       ...(this.memory
         ? { memory: this.memory, memoryTokenBudget: this.config.memory.defaultTokenBudget }
         : {}),

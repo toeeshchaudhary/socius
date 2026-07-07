@@ -151,6 +151,33 @@ async function knowledge(args: readonly string[]): Promise<number> {
   }
 }
 
+async function trace(args: readonly string[]): Promise<number> {
+  const { readFileSync, existsSync: exists } = await import("node:fs");
+  const { join } = await import("node:path");
+  const config = loadConfig(resolvePaths());
+  const file = join(config.logging.dir, "traces.jsonl");
+  if (!exists(file)) {
+    process.stdout.write("(no traces yet — ask something first; tracing is on by default)\n");
+    return 0;
+  }
+  const n = Number(args[0]) || 10;
+  const full = args.includes("--full");
+  const lines = readFileSync(file, "utf8").trim().split("\n").filter(Boolean).slice(-n);
+  for (const line of lines) {
+    let t: { slot: string; valid: boolean; latencyMs: number; prompt: string; rawOutput: string };
+    try {
+      t = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const clip = (s: string, k: number) => (s.length > k ? `${s.slice(0, k)}…` : s).replace(/\n/g, " ");
+    process.stdout.write(`\n● ${t.slot}  (${t.latencyMs}ms, ${t.valid ? "valid" : "INVALID"})\n`);
+    process.stdout.write(`  prompt: ${clip(t.prompt, full ? 100000 : 200)}\n`);
+    process.stdout.write(`  output: ${clip(t.rawOutput, full ? 100000 : 200)}\n`);
+  }
+  return 0;
+}
+
 async function restart(): Promise<number> {
   const config = loadConfig(resolvePaths());
   const client = await DaemonClient.connect(config.daemon.socketPath);
@@ -198,12 +225,15 @@ async function main(argv: readonly string[]): Promise<number> {
   if (command === "remember") return remember(args.slice(1).join(" ").trim());
   if (command === "mem") return mem(args.slice(1));
   if (command === "knowledge") return knowledge(args.slice(1));
+  if (command === "trace") return trace(args.slice(1));
 
   const input = args.join(" ").trim();
   const stdin = await readStdin();
   if (!input && !stdin) {
     process.stderr.write("usage: socius <question>   |   <cmd> | socius <question>\n");
-    process.stderr.write("       socius remember <text> | mem [list|forget <id>] | doctor | restart\n");
+    process.stderr.write(
+      "       socius remember <text> | mem [list|forget <id>] | knowledge [index|search] | trace [n] | doctor | restart\n",
+    );
     return 2;
   }
   return ask(input || "Summarize and explain the following.", stdin);

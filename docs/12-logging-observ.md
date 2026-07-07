@@ -23,9 +23,14 @@ interface ReasoningTrace {
 }
 ```
 
-`socius trace [id]` replays a request's reasoning: which memories were retrieved, what each slot
-was asked, what it answered, where it retried. This turns "the AI did something weird" into a
-debuggable artifact — the antidote to the black-box agent.
+`socius trace [n]` replays the last `n` reasoning slots: for each, the slot name (`decide`,
+`plan:<tool>`, `answer`), the exact prompt the model saw, its raw output, whether the output was
+schema-valid, and the latency. `--full` shows untruncated prompts/outputs. This turns "the AI did
+something weird" into a debuggable artifact — the antidote to the black-box agent.
+
+*Implemented:* `FileTraceSink` (in `@socius/logging`) appends each slot as JSON Lines to
+`~/.local/state/socius/traces.jsonl`; the planner slots (`packages/planner/src/slots.ts`) record
+into it. Disable with `logging.traces = false`.
 
 ## Levels
 

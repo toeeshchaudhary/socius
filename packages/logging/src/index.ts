@@ -2,6 +2,8 @@
  * @socius/logging — structured logger + reasoning-trace sink.
  * A minimal console logger is provided now; a file/JSON sink lands in M1.
  */
+import { appendFileSync, mkdirSync } from "node:fs";
+import { dirname } from "node:path";
 import type { Logger, LogLevel, ReasoningTrace, TraceSink } from "@socius/core";
 import type { Subsystem } from "@socius/core";
 
@@ -53,7 +55,38 @@ export class ConsoleLogger implements Logger {
   }
 }
 
-/** No-op trace sink placeholder; the file-backed sink arrives with M1. */
+/** No-op trace sink (used when tracing is disabled). */
 export class NullTraceSink implements TraceSink {
   record(_trace: ReasoningTrace): void {}
+}
+
+/**
+ * Appends reasoning traces as JSON Lines to a file, so `socius trace` can replay
+ * exactly what the model saw and decided at each slot (Principle #5). Obvious
+ * secrets are redacted before writing.
+ */
+export class FileTraceSink implements TraceSink {
+  constructor(private readonly path: string) {
+    mkdirSync(dirname(path), { recursive: true });
+  }
+  record(trace: ReasoningTrace): void {
+    const safe = {
+      ...trace,
+      prompt: redact(trace.prompt),
+      rawOutput: redact(trace.rawOutput),
+    };
+    try {
+      appendFileSync(this.path, `${JSON.stringify(safe)}\n`);
+    } catch {
+      // tracing must never break a request
+    }
+  }
+}
+
+/** Redact obvious credentials (API keys, bearer tokens) from trace text. */
+function redact(s: string): string {
+  return s
+    .replace(/\bck_[A-Za-z0-9_-]{6,}/g, "ck_***")
+    .replace(/\bBearer\s+[A-Za-z0-9._-]+/gi, "Bearer ***")
+    .replace(/\b(sk|pk|gh[pousr])_[A-Za-z0-9_-]{6,}/g, "$1_***");
 }

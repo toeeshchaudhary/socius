@@ -14,10 +14,11 @@ import type {
   Planner,
   Tool,
   ToolRegistry,
+  TraceSink,
 } from "@socius/core";
 import { asToolCallId } from "@socius/core";
 import type { ToolRunner } from "@socius/tools";
-import { completeStructured, streamAnswer } from "./slots.ts";
+import { type TraceContext, completeStructured, streamAnswer } from "./slots.ts";
 
 export interface GraphPlannerDeps {
   readonly backend: InferenceBackend;
@@ -28,6 +29,7 @@ export interface GraphPlannerDeps {
   readonly mode?: ExecutionMode;
   readonly maxToolCalls?: number;
   readonly memoryTokenBudget?: number;
+  readonly traceSink?: TraceSink;
 }
 
 interface Decision {
@@ -103,16 +105,22 @@ export class GraphPlanner implements Planner {
 
     // 3. Answer (stream), with memory + tool results in context.
     const contextBlock = buildContext(memoryBlock.text, outcomes);
+    const answerTrace = this.trace(ctx, "answer");
     for await (const token of streamAnswer(this.deps.backend, {
       system: this.deps.systemPrompt + contextBlock,
       input: ctx.input,
       ...(ctx.stdin ? { stdin: ctx.stdin } : {}),
       ...(ctx.maxTokens ? { maxTokens: ctx.maxTokens } : {}),
       ...(ctx.signal ? { signal: ctx.signal } : {}),
+      ...(answerTrace ? { trace: answerTrace } : {}),
     })) {
       yield { type: "token", token };
     }
     yield { type: "done" };
+  }
+
+  private trace(ctx: PlanContext, slot: string): TraceContext | undefined {
+    return this.deps.traceSink ? { sink: this.deps.traceSink, traceId: ctx.traceId, slot } : undefined;
   }
 
   private async retrieve(ctx: PlanContext): Promise<{ text: string; label: string }> {
@@ -153,6 +161,7 @@ export class GraphPlanner implements Planner {
       '{"action":"tool","tool":"<name>","reason":"<why>"} to call a tool.';
     const user = `Request: ${ctx.input}${ctx.stdin ? `\n(has piped input)` : ""}${memory ? `\nContext:\n${memory}` : ""}${priorResults}`;
 
+    const dt = this.trace(ctx, "decide");
     const decision = await completeStructured<Decision>(
       this.deps.backend,
       [
@@ -160,7 +169,7 @@ export class GraphPlanner implements Planner {
         { role: "user", content: user },
       ],
       DECIDE_SCHEMA,
-      ctx.signal,
+      { ...(ctx.signal ? { signal: ctx.signal } : {}), ...(dt ? { trace: dt } : {}) },
     );
     return decision ?? { action: "answer" };
   }
@@ -185,6 +194,7 @@ export class GraphPlanner implements Planner {
       "Use empty/default values if unsure; do not invent unrelated fields.";
     const user = `${ctx.input}${ctx.stdin ? `\n\n${ctx.stdin.slice(0, 1500)}` : ""}${memory ? `\nContext:\n${memory}` : ""}${priorResults}`;
 
+    const t = this.trace(ctx, `plan:${tool.name}`);
     const args = await completeStructured<Record<string, unknown>>(
       this.deps.backend,
       [
@@ -192,7 +202,7 @@ export class GraphPlanner implements Planner {
         { role: "user", content: user },
       ],
       tool.inputSchema,
-      ctx.signal,
+      { ...(ctx.signal ? { signal: ctx.signal } : {}), ...(t ? { trace: t } : {}) },
     );
     return args && typeof args === "object" ? args : {};
   }
