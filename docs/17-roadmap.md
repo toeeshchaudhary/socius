@@ -101,12 +101,29 @@ answered with a value only that server knew ("Falcon-Nine").
 Socius is **CLI-only** by decision. No `apps/gui`. Additional front-ends, if ever, are
 just clients of the same daemon/IPC — but none are planned.
 
-## M6 — Long-running & proactive (future)
+## Polish batch ✅ (done)
 
-- Background agents, scheduled workflows, smart notifications.
-- A two-stage Plan node (select tool by name → fetch its full schema → fill args) so
-  the small model can drive complex multi-step MCP tools (e.g. Composio discover→execute).
-- Possibly Socius *as* an MCP server (expose memory/knowledge to other clients).
+- ✅ `mem show` / `mem edit`, and all `mem` subcommands resolve a unique id-prefix.
+- ✅ Config hot-reload (daemon watches config.toml; live-applies policy/budgets, flags
+  model/mcp changes as needing restart).
+- ✅ Knowledge auto-reindex (daemon watches the knowledge dir; debounced reindex).
+- ✅ Two-stage planner (decide → plan, args grammar-constrained per tool).
+- ✅ Reasoning traces + `socius trace`.
+- ✅ `socius morning` briefing command.
+
+## M6 — Long-running & proactive ✅ (done)
+
+- ✅ Scheduled background tasks: `[[schedules]]` with `everyMinutes` or `dailyAt`, run
+  through the planner (no client → destructive tools fail safe), desktop notification
+  via `notify-send`. `socius schedule [list|run <name>]`.
+- ✅ Socius *as* an MCP server: `socius serve` exposes `search_memory`, `search_knowledge`,
+  `remember` over stdio to any MCP client (e.g. Claude Desktop), proxied to the daemon.
+
+## Still open (future)
+
+- Cron-grade scheduling (multiple times/weekdays), notification actions.
+- A retrieval/filter step before the decide slot when hundreds of tools are registered.
+- Sandboxed execution mode (OS-level) as an extra layer under the permission model.
 
 ## Sequencing rationale
 
