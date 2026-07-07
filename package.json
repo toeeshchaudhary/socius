@@ -4,7 +4,7 @@
   "private": true,
   "description": "A local-first AI operating companion for the terminal.",
   "license": "MIT",
-  "author": "NerdsForGaming <thesonofdevilhunter1@gmail.com>",
+  "author": "toeeshchaudhary <toeesh239@gmail.com>",
   "type": "module",
   "workspaces": [
     "packages/*",

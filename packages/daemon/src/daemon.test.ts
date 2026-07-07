@@ -150,10 +150,14 @@ class WriteThenAnswerRuntime implements ModelRuntime {
       id: "fake",
       async *complete(req: CompletionRequest): AsyncIterable<CompletionChunk> {
         if (req.responseSchema) {
+          // two-stage: decide (0) -> planArgs for fs.write (1) -> decide (2)
+          const n = decideCall++;
           const json =
-            decideCall++ === 0
-              ? JSON.stringify({ action: "tool", tool: "fs.write", args: { path, content: "hi" }, reason: "save" })
-              : JSON.stringify({ action: "answer" });
+            n === 0
+              ? JSON.stringify({ action: "tool", tool: "fs.write", reason: "save" })
+              : n === 1
+                ? JSON.stringify({ path, content: "hi" })
+                : JSON.stringify({ action: "answer" });
           yield { type: "token", text: json };
           yield { type: "done", text: "" };
           return;

@@ -94,12 +94,14 @@ async function collect(planner: GraphPlanner, c: PlanContext) {
 
 describe("GraphPlanner", () => {
   test("calls a tool then answers with the result", async () => {
+    // structured calls interleave: decide -> planArgs -> decide
     const backend = new ScriptedBackend(
-      ['{"action":"tool","tool":"echo","args":{"msg":"hi"},"reason":"needed"}', '{"action":"answer"}'],
+      ['{"action":"tool","tool":"echo","reason":"needed"}', '{"msg":"hi"}', '{"action":"answer"}'],
       ["done", "!"],
     );
     const { steps, answer, done } = await collect(makePlanner(backend), ctx());
     expect(steps.some((s) => s.startsWith("tool_call:echo"))).toBe(true);
+    expect(steps.some((s) => s.startsWith("plan:echo"))).toBe(true);
     expect(answer).toBe("done!");
     expect(done).toBe(true);
   });
@@ -129,7 +131,7 @@ describe("GraphPlanner", () => {
     const registry = new InMemoryToolRegistry();
     registry.register(failing);
     const backend = new ScriptedBackend(
-      ['{"action":"tool","tool":"boom","args":{}}', '{"action":"answer"}'],
+      ['{"action":"tool","tool":"boom"}', '{"msg":"x"}', '{"action":"answer"}'],
       ["recovered"],
     );
     const planner = new GraphPlanner({ backend, systemPrompt: "sys", tools: registry, runner: new ToolRunner(policy) });

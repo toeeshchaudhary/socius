@@ -33,7 +33,6 @@ export interface GraphPlannerDeps {
 interface Decision {
   action: "answer" | "tool";
   tool?: string;
-  args?: Record<string, unknown>;
   reason?: string;
 }
 
@@ -42,7 +41,6 @@ const DECIDE_SCHEMA = {
   properties: {
     action: { type: "string", enum: ["answer", "tool"] },
     tool: { type: "string" },
-    args: { type: "object" },
     reason: { type: "string" },
   },
   required: ["action"],
@@ -81,8 +79,13 @@ export class GraphPlanner implements Planner {
         yield step("plan", `model picked unknown tool '${decision.tool}', answering directly`);
         break;
       }
-      yield step("tool_call", `${tool.name}${decision.reason ? ` — ${decision.reason}` : ""}`);
-      const res = await this.deps.runner.run(tool, decision.args ?? {}, {
+      // Plan slot: fill this tool's arguments, grammar-constrained to ITS schema.
+      // Only the chosen tool's schema is used, so the prompt stays small and the
+      // args are guaranteed to match the schema (works for complex MCP tools).
+      const args = await this.planArgs(tool, ctx, memoryBlock.text, outcomes);
+      yield step("plan", `${tool.name}(${Object.keys(args).join(", ")})${decision.reason ? ` — ${decision.reason}` : ""}`);
+      yield step("tool_call", tool.name);
+      const res = await this.deps.runner.run(tool, args, {
         mode: this.mode,
         reasoning: decision.reason ?? `use ${tool.name}`,
         ctx: { callId: asToolCallId(`${ctx.requestId}-${i}`), ...(ctx.signal ? { signal: ctx.signal } : {}) },
@@ -143,10 +146,11 @@ export class GraphPlanner implements Planner {
       : "";
     const system =
       "You decide whether a tool call is needed to answer the user's request, or whether you can answer directly. " +
-      "Only use a tool if it is clearly required to get information you do not have. " +
+      "Only use a tool if it is clearly required to get information you do not have. Pick the tool by name; " +
+      "you will be asked for its arguments separately. " +
       `Available tools:\n${toolList}\n` +
-      "Respond with JSON only: {\"action\":\"answer\"} to answer directly, or " +
-      '{"action":"tool","tool":"<name>","args":{...},"reason":"<why>"} to call a tool.';
+      'Respond with JSON only: {"action":"answer"} to answer directly, or ' +
+      '{"action":"tool","tool":"<name>","reason":"<why>"} to call a tool.';
     const user = `Request: ${ctx.input}${ctx.stdin ? `\n(has piped input)` : ""}${memory ? `\nContext:\n${memory}` : ""}${priorResults}`;
 
     const decision = await completeStructured<Decision>(
@@ -159,6 +163,38 @@ export class GraphPlanner implements Planner {
       ctx.signal,
     );
     return decision ?? { action: "answer" };
+  }
+
+  /**
+   * Plan slot: produce the chosen tool's arguments as JSON, grammar-constrained
+   * to that tool's own inputSchema. Tools with no parameters skip the LLM call.
+   */
+  private async planArgs(
+    tool: Tool,
+    ctx: PlanContext,
+    memory: string,
+    outcomes: readonly ToolOutcome[],
+  ): Promise<Record<string, unknown>> {
+    if (!paramNames(tool.inputSchema)) return {};
+    const priorResults = outcomes.length
+      ? `\nResults so far:\n${outcomes.map((o) => `- ${o.tool}: ${o.summary}`).join("\n")}`
+      : "";
+    const system =
+      `Produce the JSON arguments to call the tool "${tool.name}". ${clip(tool.description, 400)} ` +
+      "Respond with ONLY a JSON object of arguments that satisfies the tool's schema. " +
+      "Use empty/default values if unsure; do not invent unrelated fields.";
+    const user = `${ctx.input}${ctx.stdin ? `\n\n${ctx.stdin.slice(0, 1500)}` : ""}${memory ? `\nContext:\n${memory}` : ""}${priorResults}`;
+
+    const args = await completeStructured<Record<string, unknown>>(
+      this.deps.backend,
+      [
+        { role: "system", content: system },
+        { role: "user", content: user },
+      ],
+      tool.inputSchema,
+      ctx.signal,
+    );
+    return args && typeof args === "object" ? args : {};
   }
 }
 

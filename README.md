@@ -58,4 +58,4 @@ Requires [Bun](https://bun.sh) ≥ 1.3 and a local `llama-server` build. See
 
 ## License
 
-[MIT](./LICENSE) © NerdsForGaming
+[MIT](./LICENSE) © toeeshchaudhary
