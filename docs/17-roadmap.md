@@ -43,13 +43,23 @@ DB port from a Markdown note) and it answered correctly from retrieval.
 > think, it spends the whole token budget in `reasoning_content` and returns empty
 > `content`. Socius disables thinking by default (`inference.thinking=false`).
 
-## M3 — Planner, tools, permissions
+## M3 — Planner, tools, permissions ✅ (done, live-verified)
 
-Socius starts to *act* — safely.
-- Deterministic graph engine + node library (Classify, Plan, Confirm, ToolCall, Reflect).
-- Native tools: `fs.read/list`, `git.diff/log/status`, `memory.search`, `knowledge.search`, and
-  guarded `fs.write`.
-- Capability policy engine wired end-to-end; dry-run / sandbox / confirm; reasoning-before-action.
+Socius acts — safely.
+- ✅ Deterministic `GraphPlanner`: retrieve memory → bounded decide→tool loop → answer. The LLM
+  fills a grammar-constrained "decide" slot (JSON: answer | tool+args, verified against the real
+  model) and the streaming "answer" slot. `maxToolCalls` bounds it — no open loops.
+- ✅ Native tools: `fs.read`, `fs.list`, `fs.write` (destructive), `git.status/diff/log`.
+- ✅ Capability policy engine + `ToolRunner` as the single choke point (evaluate → confirm →
+  mode → invoke); dry-run / sandbox / live.
+- ✅ **Interactive confirmation over IPC**: destructive tools block on the requesting client's
+  approval (CLI prompts on /dev/tty); fail-closed on disconnect or no terminal.
+- ⏳ Deferred to M3b: `Reflect`/self-correction node, richer git tools (commit/push), per-tool
+  and per-path policy overrides from config.
+
+*Live-verified:* "what's the git status?" → the model called `git.status` and summarized the
+real diff; "list the files" → `fs.list`; "what is 2+2?" → answered directly (no tool). The
+confirm round-trip (file written iff approved) is covered by hermetic tests.
 
 ## M4 — MCP
 
