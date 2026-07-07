@@ -149,6 +149,14 @@ export class DaemonClient {
     return this.request("mem.forget", { id });
   }
 
+  memShow(id: string): Promise<{ memory: MemoryListItem & { source?: unknown; createdAt?: number } }> {
+    return this.request("mem.show", { id });
+  }
+
+  memEdit(id: string, content: string): Promise<{ id: string }> {
+    return this.request("mem.edit", { id, content });
+  }
+
   knowledgeIndex(): Promise<{ files: number; chunks: number }> {
     return this.request("knowledge.index");
   }

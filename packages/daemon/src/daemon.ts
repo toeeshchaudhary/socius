@@ -2,9 +2,9 @@
  * sociusd — owns the resident model, wires the planner, and serves the CLI over
  * a Unix socket. Lazy-spawned by the CLI; idle-shuts-down after a TTL.
  */
-import { existsSync } from "node:fs";
+import { type FSWatcher, existsSync, watch } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import type {
   ConfirmationProvider,
   Embedder,
@@ -24,6 +24,7 @@ import type {
   TraceSink,
 } from "@socius/core";
 import { IPC_PROTOCOL_VERSION, asMemoryId, asRequestId, asTraceId, ok } from "@socius/core";
+import { loadConfig, resolvePaths } from "@socius/config";
 import { indexKnowledge } from "@socius/knowledge";
 import { FileTraceSink, NullTraceSink } from "@socius/logging";
 import { McpManager } from "@socius/mcp";
@@ -105,9 +106,11 @@ export class Daemon {
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private seq = 0;
   private readonly conns = new WeakMap<object, ConnState>();
+  private readonly watchers: FSWatcher[] = [];
+  private readonly debounces = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(
-    private readonly config: SociusConfig,
+    private config: SociusConfig,
     private readonly log: Logger,
     private readonly runtime: ModelRuntime,
     private readonly embedder?: Embedder,
@@ -171,7 +174,82 @@ export class Daemon {
     this.serve(socketPath);
     this.armIdleTimer();
     this.installSignalHandlers();
+    this.setupWatchers();
     this.log.info("sociusd ready", { socket: socketPath, model: this.config.model.id });
+  }
+
+  /** Watch config.toml (hot-reload safe sections) and the knowledge base (auto-reindex). */
+  private setupWatchers(): void {
+    const paths = resolvePaths();
+    const configDir = dirname(paths.configFile);
+    if (existsSync(configDir)) {
+      try {
+        this.watchers.push(
+          watch(configDir, (_e, file) => {
+            if (file && basename(paths.configFile) === file) this.debounce("config", 400, () => this.reloadConfig());
+          }),
+        );
+      } catch {
+        /* watching is best-effort */
+      }
+    }
+    const kb = this.config.storage.knowledgeDir;
+    if (this.memory && existsSync(kb)) {
+      try {
+        this.watchers.push(
+          watch(kb, { recursive: true }, (_e, file) => {
+            if (file && String(file).endsWith(".md")) this.debounce("kb", 1000, () => this.reindexKnowledge());
+          }),
+        );
+      } catch {
+        /* recursive watch may be unsupported; reindex via `socius knowledge index` still works */
+      }
+    }
+  }
+
+  private debounce(key: string, ms: number, fn: () => void): void {
+    const existing = this.debounces.get(key);
+    if (existing) clearTimeout(existing);
+    this.debounces.set(
+      key,
+      setTimeout(() => {
+        this.debounces.delete(key);
+        fn();
+      }, ms),
+    );
+  }
+
+  /** Reload config.toml and apply the sections that are safe to change live. */
+  private reloadConfig(): void {
+    let next: SociusConfig;
+    try {
+      next = loadConfig(resolvePaths());
+    } catch (err) {
+      this.log.warn("config reload failed, keeping current", { err: err instanceof Error ? err.message : String(err) });
+      return;
+    }
+    const restartNeeded =
+      next.model.path !== this.config.model.path ||
+      next.model.id !== this.config.model.id ||
+      next.inference.port !== this.config.inference.port ||
+      JSON.stringify(next.mcp) !== JSON.stringify(this.config.mcp);
+
+    // Live-applicable: permission policy + overrides, execution mode, memory budgets.
+    this.config = next;
+    this.policy = new ConfiguredPolicyEngine(next.permissions.policy, {
+      ...(next.permissions.tools ? { tools: next.permissions.tools } : {}),
+      ...(next.permissions.paths ? { paths: [...next.permissions.paths] } : {}),
+    });
+    this.log.info("config reloaded", { restartNeeded });
+    if (restartNeeded) {
+      this.log.warn("model/inference/mcp changes need a restart to apply — run `socius restart`");
+    }
+  }
+
+  private async reindexKnowledge(): Promise<void> {
+    if (!this.memory) return;
+    const r = await indexKnowledge(this.config.storage.knowledgeDir, this.memory);
+    if (r.ok) this.log.info("knowledge auto-reindexed", { files: r.value.files, chunks: r.value.chunks });
   }
 
   private serve(socketPath: string): void {
@@ -234,6 +312,14 @@ export class Daemon {
         case "mem.forget":
           socket.write(response(id, await this.memForget((msg.params as { id: string }).id)));
           break;
+        case "mem.show":
+          socket.write(response(id, await this.memShow((msg.params as { id: string }).id)));
+          break;
+        case "mem.edit": {
+          const p = msg.params as { id: string; content: string };
+          socket.write(response(id, await this.memEdit(p.id, p.content)));
+          break;
+        }
         case "knowledge.index":
           socket.write(response(id, await this.knowledgeIndex()));
           break;
@@ -366,11 +452,49 @@ export class Daemon {
     };
   }
 
-  private async memForget(id: string): Promise<{ ok: boolean }> {
-    if (!this.memory) throw new Error("memory is not available");
-    const r = await this.memory.forget(asMemoryId(id));
+  private async memForget(idOrPrefix: string): Promise<{ ok: boolean }> {
+    const id = await this.resolveMemoryId(idOrPrefix);
+    const r = await this.memory!.forget(id);
     if (!r.ok) throw r.error;
     return { ok: true };
+  }
+
+  private async memShow(idOrPrefix: string): Promise<{ memory: unknown }> {
+    const id = await this.resolveMemoryId(idOrPrefix);
+    const r = await this.memory!.get(id);
+    if (!r.ok) throw r.error;
+    if (!r.value) throw new Error(`no memory ${idOrPrefix}`);
+    const m = r.value;
+    return {
+      memory: {
+        id: m.id,
+        kind: m.kind,
+        content: m.content,
+        confidence: m.confidence,
+        tags: m.tags,
+        source: m.source,
+        createdAt: m.createdAt,
+        updatedAt: m.updatedAt,
+      },
+    };
+  }
+
+  private async memEdit(idOrPrefix: string, content: string): Promise<{ id: string }> {
+    const id = await this.resolveMemoryId(idOrPrefix);
+    const r = await this.memory!.update(id, { content });
+    if (!r.ok) throw r.error;
+    return { id: r.value.id };
+  }
+
+  /** Resolve a full id or a unique id-prefix (as shown by `mem list`). */
+  private async resolveMemoryId(idOrPrefix: string): Promise<import("@socius/core").MemoryId> {
+    if (!this.memory) throw new Error("memory is not available");
+    const r = await this.memory.list({ limit: 100_000 });
+    if (!r.ok) throw r.error;
+    const matches = r.value.filter((m) => m.id === idOrPrefix || m.id.startsWith(idOrPrefix));
+    if (matches.length === 0) throw new Error(`no memory matching '${idOrPrefix}'`);
+    if (matches.length > 1) throw new Error(`'${idOrPrefix}' is ambiguous (${matches.length} matches)`);
+    return matches[0]!.id;
   }
 
   private async knowledgeIndex(): Promise<{ files: number; chunks: number }> {
@@ -412,6 +536,8 @@ export class Daemon {
 
   async stop(): Promise<void> {
     if (this.idleTimer) clearTimeout(this.idleTimer);
+    for (const w of this.watchers) w.close();
+    for (const t of this.debounces.values()) clearTimeout(t);
     this.server?.stop();
     await this.mcp?.close();
     await this.runtime.stop();

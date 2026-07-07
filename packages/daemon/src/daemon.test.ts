@@ -12,6 +12,7 @@ import type {
 } from "@socius/core";
 import { ok } from "@socius/core";
 import { defaultConfig } from "@socius/config";
+import { HashingEmbedder } from "@socius/inference";
 import { ConsoleLogger } from "@socius/logging";
 import { Daemon } from "./daemon.ts";
 import type { ModelRuntime } from "./runtime.ts";
@@ -211,5 +212,51 @@ describe("Daemon interactive confirmation (destructive tool)", () => {
     expect(await Bun.file(targetFile).exists()).toBe(false);
     await daemon.stop();
     await rm(dir, { recursive: true, force: true });
+  });
+});
+
+describe("Daemon memory ops (show/edit/forget by id-prefix)", () => {
+  let dir: string;
+  let daemon: Daemon;
+  let sock: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "socius-mem-"));
+    const base = defaultConfig();
+    const config: SociusConfig = {
+      ...base,
+      daemon: { ...base.daemon, socketPath: join(dir, "sock"), pidPath: join(dir, "pid") },
+      logging: { ...base.logging, dir, level: "error" },
+      promptsDir: join(dir, "prompts"),
+      storage: { ...base.storage, dbFile: join(dir, "db.sqlite") },
+    };
+    sock = config.daemon.socketPath;
+    const log = new ConsoleLogger({ level: "error", subsystem: "daemon" });
+    daemon = new Daemon(config, log, new FakeRuntime([]), new HashingEmbedder(256));
+    await daemon.start();
+  });
+  afterEach(async () => {
+    await daemon.stop();
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  test("remember -> show(prefix) -> edit(prefix) -> forget(prefix)", async () => {
+    const r = (await rpc(sock, "remember", { content: "the sky is blue", kind: "long_term" })) as { id: string };
+    const prefix = r.id.slice(0, 8);
+
+    const shown = (await rpc(sock, "mem.show", { id: prefix })) as { memory: { content: string } };
+    expect(shown.memory.content).toBe("the sky is blue");
+
+    await rpc(sock, "mem.edit", { id: prefix, content: "the sky is grey" });
+    const shown2 = (await rpc(sock, "mem.show", { id: prefix })) as { memory: { content: string } };
+    expect(shown2.memory.content).toBe("the sky is grey");
+
+    await rpc(sock, "mem.forget", { id: prefix });
+    const list = (await rpc(sock, "mem.list", {})) as { memories: unknown[] };
+    expect(list.memories).toHaveLength(0);
+  });
+
+  test("an unknown prefix errors clearly", async () => {
+    await expect(rpc(sock, "mem.show", { id: "deadbeef" })).rejects.toThrow(/no memory/);
   });
 });

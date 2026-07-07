@@ -100,6 +100,27 @@ async function mem(args: readonly string[]): Promise<number> {
       process.stdout.write("forgotten\n");
       return 0;
     }
+    if (sub === "show") {
+      const id = args[1];
+      if (!id) {
+        process.stderr.write("usage: socius mem show <id>\n");
+        return 2;
+      }
+      const { memory: m } = await client.memShow(id);
+      process.stdout.write(`id      ${m.id}\nkind    ${m.kind}\nconf    ${m.confidence}\ntags    ${(m.tags ?? []).join(", ")}\n\n${m.content}\n`);
+      return 0;
+    }
+    if (sub === "edit") {
+      const id = args[1];
+      const content = args.slice(2).join(" ").trim();
+      if (!id || !content) {
+        process.stderr.write("usage: socius mem edit <id> <new content>\n");
+        return 2;
+      }
+      await client.memEdit(id, content);
+      process.stdout.write("updated\n");
+      return 0;
+    }
     // default: list
     const { memories } = await client.memList(undefined, 50);
     if (memories.length === 0) {
@@ -178,6 +199,16 @@ async function trace(args: readonly string[]): Promise<number> {
   return 0;
 }
 
+const MORNING_PROMPT =
+  "Give me a concise morning briefing as short scannable bullet points. " +
+  "If you have email or calendar tools available, summarize today's important emails and upcoming events. " +
+  "If the current directory is a git repository, summarize recent activity and uncommitted changes. " +
+  "Keep it brief — skip anything you have no data for.";
+
+async function morning(): Promise<number> {
+  return ask(MORNING_PROMPT, undefined);
+}
+
 async function restart(): Promise<number> {
   const config = loadConfig(resolvePaths());
   const client = await DaemonClient.connect(config.daemon.socketPath);
@@ -226,6 +257,7 @@ async function main(argv: readonly string[]): Promise<number> {
   if (command === "mem") return mem(args.slice(1));
   if (command === "knowledge") return knowledge(args.slice(1));
   if (command === "trace") return trace(args.slice(1));
+  if (command === "morning") return morning();
 
   const input = args.join(" ").trim();
   const stdin = await readStdin();
