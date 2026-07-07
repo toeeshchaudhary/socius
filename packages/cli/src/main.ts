@@ -1,49 +1,105 @@
 #!/usr/bin/env bun
 /**
- * `socius` entrypoint. For M0 this wires config + logging and reports status via
- * a minimal `doctor`; the connect-or-spawn daemon path and streaming inference
- * land in M1.
+ * `socius` entrypoint — the thin client. Parses args + stdin, finds or spawns the
+ * daemon, and streams the answer to stdout. Diagnostics go to stderr so piped
+ * stdout stays clean.
  */
+import { existsSync } from "node:fs";
+import { IPC_PROTOCOL_VERSION } from "@socius/core";
 import { defaultConfig, resolvePaths } from "@socius/config";
-import { ConsoleLogger } from "@socius/logging";
-import { readStdin, stdoutIsTty } from "./index.ts";
+import { DaemonClient, ensureDaemon } from "./client.ts";
+import { readStdin } from "./index.ts";
+
+async function doctor(): Promise<number> {
+  const paths = resolvePaths();
+  const config = defaultConfig(paths);
+  const w = (s: string) => process.stdout.write(`${s}\n`);
+  const mark = (ok: boolean) => (ok ? "ok  " : "FAIL");
+
+  const modelOk = existsSync(config.model.path);
+  const binOk = existsSync(config.inference.llamaServerBin);
+  const client = await DaemonClient.connect(config.daemon.socketPath);
+  let daemonLine = "not running (will spawn on first use)";
+  if (client) {
+    try {
+      const hs = await client.handshake();
+      daemonLine = `running — protocol ${hs.protocolVersion}, model ${hs.modelId}, ready=${hs.modelReady}`;
+    } catch (e) {
+      daemonLine = `reachable but handshake failed: ${e instanceof Error ? e.message : e}`;
+    }
+    client.close();
+  }
+
+  w("socius doctor");
+  w(`  [${mark(true)}] config dir    ${paths.configDir}`);
+  w(`  [${mark(true)}] data dir      ${paths.dataDir}`);
+  w(`  [${mark(modelOk)}] model file    ${config.model.path}`);
+  w(`  [${mark(binOk)}] llama-server  ${config.inference.llamaServerBin}`);
+  w(`  [${mark(true)}] socket        ${config.daemon.socketPath}`);
+  w(`  [    ] daemon        ${daemonLine}`);
+  w(`  protocol v${IPC_PROTOCOL_VERSION} · gpuLayers ${config.model.gpuLayers} · ctx ${config.model.contextWindow}`);
+  if (!modelOk) w("  ! model file missing — set model.path in config.toml");
+  if (!binOk) w("  ! llama-server not found — set inference.llamaServerBin");
+  return modelOk && binOk ? 0 : 1;
+}
+
+async function restart(): Promise<number> {
+  const config = defaultConfig(resolvePaths());
+  const client = await DaemonClient.connect(config.daemon.socketPath);
+  if (client) {
+    await client.shutdown().catch(() => {});
+    client.close();
+    process.stderr.write("socius: daemon shut down. It will respawn on next use.\n");
+  } else {
+    process.stderr.write("socius: no daemon running.\n");
+  }
+  return 0;
+}
+
+async function ask(input: string, stdin: string | undefined): Promise<number> {
+  const config = defaultConfig(resolvePaths());
+  const warming = !existsSync(config.daemon.socketPath);
+  if (warming && process.stderr.isTTY) process.stderr.write("socius: warming model…\n");
+
+  const client = await ensureDaemon(config);
+  const hs = await client.handshake();
+  if (hs.protocolVersion !== IPC_PROTOCOL_VERSION) {
+    process.stderr.write(
+      `socius: protocol mismatch (cli v${IPC_PROTOCOL_VERSION}, daemon v${hs.protocolVersion}). Run 'socius restart'.\n`,
+    );
+    client.close();
+    return 1;
+  }
+
+  await client.infer(
+    { input, ...(stdin ? { stdin } : {}) },
+    (text) => process.stdout.write(text),
+  );
+  if (process.stdout.isTTY) process.stdout.write("\n");
+  client.close();
+  return 0;
+}
 
 async function main(argv: readonly string[]): Promise<number> {
   const args = argv.slice(2);
   const command = args[0];
-  const paths = resolvePaths();
-  const config = defaultConfig(paths);
-  const log = new ConsoleLogger({ level: config.logging.level, subsystem: "cli" });
 
-  if (command === "doctor") {
-    // M1 will probe: socket alive? model present? GPU? config valid?
-    process.stdout.write("socius doctor\n");
-    process.stdout.write(`  config dir : ${paths.configDir}\n`);
-    process.stdout.write(`  data dir   : ${paths.dataDir}\n`);
-    process.stdout.write(`  socket     : ${paths.socketPath}\n`);
-    process.stdout.write(`  model id   : ${config.model.id}\n`);
-    process.stdout.write(`  llama-server: ${config.inference.llamaServerBin}\n`);
-    process.stdout.write("  status     : scaffolding (M0) — inference lands in M1\n");
-    return 0;
-  }
+  if (command === "doctor") return doctor();
+  if (command === "restart") return restart();
 
   const input = args.join(" ").trim();
   const stdin = await readStdin();
   if (!input && !stdin) {
     process.stderr.write("usage: socius <question>   |   <cmd> | socius <question>\n");
+    process.stderr.write("       socius doctor | restart\n");
     return 2;
   }
-
-  log.info("received request", { hasStdin: stdin !== undefined, tty: stdoutIsTty() });
-  process.stderr.write(
-    "socius: the reasoning path is not wired yet (M1). Run `socius doctor` for status.\n",
-  );
-  return 0;
+  return ask(input || "Summarize and explain the following.", stdin);
 }
 
 main(process.argv)
   .then((code) => process.exit(code))
   .catch((err) => {
-    process.stderr.write(`socius: fatal: ${err instanceof Error ? err.message : String(err)}\n`);
+    process.stderr.write(`socius: ${err instanceof Error ? err.message : String(err)}\n`);
     process.exit(1);
   });

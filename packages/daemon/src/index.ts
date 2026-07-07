@@ -1,23 +1,19 @@
 /**
- * @socius/daemon — sociusd. Owns the resident model (manages llama-server child
- * processes), wires every subsystem, and serves the CLI over a Unix socket
- * (newline-delimited JSON-RPC). Lazy-spawned by the CLI; idle-shuts-down after
- * a configurable TTL.
- *
- * M1 implements: socket server, handshake, infer streaming, llama-server child
- * management + health/restart, idle timeout, pidfile. This module currently
- * exposes the lifecycle surface.
+ * @socius/daemon — sociusd. Owns the resident model (supervises llama-server),
+ * wires the planner, and serves the CLI over a Unix socket. Lazy-spawned by the
+ * CLI; idle-shuts-down after a configurable TTL.
  */
-import type { SociusConfig } from "@socius/core";
-import { type Result, error } from "@socius/core";
+import type { Result, SociusConfig } from "@socius/core";
+import { ok } from "@socius/core";
+import { ConsoleLogger } from "@socius/logging";
+import { Daemon } from "./daemon.ts";
+import { LlamaModelRuntime } from "./runtime.ts";
 
-export interface Daemon {
-  /** Bind the socket, start the model, write the pidfile. */
-  start(): Promise<Result<void>>;
-  /** Graceful shutdown: drain requests, stop children, unlink socket + pidfile. */
-  stop(): Promise<void>;
-}
+export { Daemon } from "./daemon.ts";
+export { type ModelRuntime, LlamaModelRuntime } from "./runtime.ts";
 
-export function createDaemon(_config: SociusConfig): Result<Daemon> {
-  return { ok: false, error: error("NOT_IMPLEMENTED", "daemon", "createDaemon (M1).") };
+export function createDaemon(config: SociusConfig): Result<Daemon> {
+  const logger = new ConsoleLogger({ level: config.logging.level, subsystem: "daemon" });
+  const runtime = new LlamaModelRuntime(config, logger.child("inference"));
+  return ok(new Daemon(config, logger, runtime));
 }

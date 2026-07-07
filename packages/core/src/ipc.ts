@@ -25,6 +25,8 @@ export interface InferParams {
   readonly input: string;
   readonly stdin?: string;
   readonly mode?: "dry_run" | "sandbox" | "live";
+  /** Cap on generated tokens for this request. */
+  readonly maxTokens?: number;
 }
 
 /** Daemon → client streaming notifications during an Infer call. */

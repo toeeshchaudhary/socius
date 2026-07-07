@@ -27,6 +27,7 @@ export class DirectPlanner implements Planner {
         { role: "system", content: this.deps.systemPrompt },
         { role: "user", content: userContent },
       ],
+      ...(ctx.maxTokens ? { maxTokens: ctx.maxTokens } : {}),
       ...(ctx.signal ? { signal: ctx.signal } : {}),
     });
     for await (const chunk of stream) {

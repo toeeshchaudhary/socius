@@ -36,6 +36,7 @@ export interface PlanContext {
   /** Piped stdin content, if any (git diff, logs, …). */
   readonly stdin?: string;
   readonly memories?: readonly RetrievedMemory[];
+  readonly maxTokens?: number;
   readonly signal?: AbortSignal;
 }
 
