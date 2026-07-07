@@ -19,3 +19,4 @@ export const asMemoryId = (s: string): MemoryId => s as MemoryId;
 export const asSessionId = (s: string): SessionId => s as SessionId;
 export const asRequestId = (s: string): RequestId => s as RequestId;
 export const asTraceId = (s: string): TraceId => s as TraceId;
+export const asToolCallId = (s: string): ToolCallId => s as ToolCallId;

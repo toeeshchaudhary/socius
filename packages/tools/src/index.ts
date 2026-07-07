@@ -5,6 +5,18 @@
  */
 import type { Tool, ToolRegistry } from "@socius/core";
 
+export { ToolRunner, type RunOptions } from "./runner.ts";
+export { fsReadTool, fsListTool } from "./native/fs.ts";
+export { gitStatusTool, gitDiffTool, gitLogTool } from "./native/git.ts";
+
+import { fsListTool, fsReadTool } from "./native/fs.ts";
+import { gitDiffTool, gitLogTool, gitStatusTool } from "./native/git.ts";
+
+/** The built-in native tools registered at startup. */
+export function builtinTools(): readonly Tool[] {
+  return [fsReadTool, fsListTool, gitStatusTool, gitDiffTool, gitLogTool];
+}
+
 export class InMemoryToolRegistry implements ToolRegistry {
   private readonly tools = new Map<string, Tool>();
 
