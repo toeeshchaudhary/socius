@@ -61,12 +61,21 @@ Socius acts — safely.
 real diff; "list the files" → `fs.list`; "what is 2+2?" → answered directly (no tool). The
 confirm round-trip (file written iff approved) is covered by hermetic tests.
 
-## M4 — MCP
+## M4 — MCP ✅ (done, live-verified)
 
-- MCP client over the official SDK; per-server spawn + tool wrapping + namespacing.
-- Capability mapping for MCP tools; resilience (down server → tools dropped).
-- First real integrations by config: Gmail, Calendar, Notion, filesystem.
-- *Unlocks the morning workflow:* summarize mail + calendar + git + todos.
+- ✅ MCP client over the official SDK (1.29); per-server stdio spawn, `listTools`,
+  wrap each as a native `Tool` via `mcpToolToNative`, namespaced `server/tool`,
+  registered into the same registry the planner uses (indistinguishable from native).
+- ✅ Safety mapping: destructive-by-default unless `readOnlyHint`. Resilience: a
+  server that fails to start is skipped; native tools keep working.
+- ✅ `health()` / `socius doctor` report per-server MCP status; `config.example.toml`
+  documents declaration.
+- ⏳ Real integrations (Gmail/Calendar/Notion) are now **config-only** — add a
+  `[[mcp]]` block. The morning-workflow *command* (summarize mail+calendar+git+todos)
+  is a future convenience layer on top.
+
+*Live-verified:* configured a local stdio MCP server; the model called its tool and
+answered with a value only that server knew ("Falcon-Nine").
 
 ## M5 — GUI & voice (optional)
 
