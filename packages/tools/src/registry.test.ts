@@ -31,7 +31,12 @@ describe("InMemoryToolRegistry", () => {
     reg.register(fakeTool("fs.read", ["fs", "read"]));
     reg.register(fakeTool("net.fetch", ["net"]));
 
-    expect(reg.findByTags(["read"]).map((t) => t.name).sort()).toEqual(["fs.read", "git.diff"]);
+    expect(
+      reg
+        .findByTags(["read"])
+        .map((t) => t.name)
+        .sort(),
+    ).toEqual(["fs.read", "git.diff"]);
     expect(reg.findByTags(["git"]).map((t) => t.name)).toEqual(["git.diff"]);
     expect(reg.findByTags(["nonexistent"])).toHaveLength(0);
   });

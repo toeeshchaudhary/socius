@@ -41,18 +41,21 @@ export class ConfiguredPolicyEngine implements PolicyEngine {
     let base: Decision = "allow";
     for (const cap of req.capabilities) {
       const d = this.decisionFor(cap);
-      if (d === "deny") return { decision: "deny", reason: `capability '${cap}' is denied by policy` };
+      if (d === "deny")
+        return { decision: "deny", reason: `capability '${cap}' is denied by policy` };
       base = worst(base, d);
     }
 
     // 2. Per-tool override replaces the capability decision.
     const toolOverride = this.overrides.tools?.[req.toolName];
-    if (toolOverride === "deny") return { decision: "deny", reason: `tool '${req.toolName}' is denied by policy` };
+    if (toolOverride === "deny")
+      return { decision: "deny", reason: `tool '${req.toolName}' is denied by policy` };
     if (toolOverride) base = toolOverride;
 
     // 3. Per-path rules against the touched resources.
     const pathVerdict = this.evaluatePaths(req.resources ?? []);
-    if (pathVerdict === "deny") return { decision: "deny", reason: "a targeted path is denied by policy" };
+    if (pathVerdict === "deny")
+      return { decision: "deny", reason: "a targeted path is denied by policy" };
     if (pathVerdict === "confirm") base = worst(base, "confirm");
     if (pathVerdict === "allow" && base === "confirm") base = "allow";
 
@@ -61,7 +64,12 @@ export class ConfiguredPolicyEngine implements PolicyEngine {
 
     return {
       decision: base,
-      reason: base === "allow" ? "permitted by policy" : base === "deny" ? "denied by policy" : "confirmation required",
+      reason:
+        base === "allow"
+          ? "permitted by policy"
+          : base === "deny"
+            ? "denied by policy"
+            : "confirmation required",
     };
   }
 
@@ -74,7 +82,11 @@ export class ConfiguredPolicyEngine implements PolicyEngine {
       // most specific (longest prefix) matching rule for this resource
       let match: PathRule | null = null;
       for (const rule of rules) {
-        if (resource.startsWith(rule.prefix) && (!match || rule.prefix.length > match.prefix.length)) match = rule;
+        if (
+          resource.startsWith(rule.prefix) &&
+          (!match || rule.prefix.length > match.prefix.length)
+        )
+          match = rule;
       }
       if (match) verdict = verdict ? worst(verdict, match.decision) : match.decision;
     }

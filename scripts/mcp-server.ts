@@ -15,7 +15,9 @@ server.registerTool(
     inputSchema: {},
     annotations: { readOnlyHint: true },
   },
-  async () => ({ content: [{ type: "text", text: "The internal project codename is Falcon-Nine." }] }),
+  async () => ({
+    content: [{ type: "text", text: "The internal project codename is Falcon-Nine." }],
+  }),
 );
 
 await server.connect(new StdioServerTransport());

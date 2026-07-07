@@ -79,5 +79,7 @@ export interface MemoryStore {
   forget(id: MemoryId): Promise<Result<void>>;
   retrieve(query: RetrievalQuery): Promise<Result<readonly RetrievedMemory[]>>;
   /** List for inspection tooling (`socius mem`). */
-  list(filter?: { kinds?: readonly MemoryKind[]; limit?: number }): Promise<Result<readonly Memory[]>>;
+  list(filter?: { kinds?: readonly MemoryKind[]; limit?: number }): Promise<
+    Result<readonly Memory[]>
+  >;
 }

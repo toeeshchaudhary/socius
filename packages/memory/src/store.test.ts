@@ -45,10 +45,12 @@ describe("SqliteMemoryStore", () => {
   });
 
   test("retrieval ranks the most relevant memory first", async () => {
-    const results = unwrap(await store.retrieve({ text: "renderer null pointer crash on startup" }));
+    const results = unwrap(
+      await store.retrieve({ text: "renderer null pointer crash on startup" }),
+    );
     expect(results.length).toBeGreaterThan(0);
-    expect(results[0]!.memory.content).toContain("renderer crashes");
-    expect(results[0]!.score).toBeGreaterThan(0);
+    expect(results[0]?.memory.content).toContain("renderer crashes");
+    expect(results[0]?.score).toBeGreaterThan(0);
   });
 
   test("keyword hit surfaces a memory even with sparse vector overlap", async () => {
@@ -57,12 +59,16 @@ describe("SqliteMemoryStore", () => {
   });
 
   test("kind filter restricts results", async () => {
-    const results = unwrap(await store.retrieve({ text: "database migration", kinds: ["journal"] }));
+    const results = unwrap(
+      await store.retrieve({ text: "database migration", kinds: ["journal"] }),
+    );
     expect(results.every((r) => r.memory.kind === "journal")).toBe(true);
   });
 
   test("token budget caps how much is returned", async () => {
-    const tiny = unwrap(await store.retrieve({ text: "renderer typescript database", tokenBudget: 1 }));
+    const tiny = unwrap(
+      await store.retrieve({ text: "renderer typescript database", tokenBudget: 1 }),
+    );
     expect(tiny.length).toBe(1); // at least one, but budget stops further inclusion
   });
 

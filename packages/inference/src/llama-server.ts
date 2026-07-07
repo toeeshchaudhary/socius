@@ -42,11 +42,16 @@ export class LlamaServerProcess {
 
   private args(): string[] {
     const a = [
-      "-m", this.opts.modelPath,
-      "--host", this.opts.host,
-      "--port", String(this.opts.port),
-      "-c", String(this.opts.contextWindow),
-      "-ngl", String(this.opts.cpuOnly ? 0 : this.opts.gpuLayers),
+      "-m",
+      this.opts.modelPath,
+      "--host",
+      this.opts.host,
+      "--port",
+      String(this.opts.port),
+      "-c",
+      String(this.opts.contextWindow),
+      "-ngl",
+      String(this.opts.cpuOnly ? 0 : this.opts.gpuLayers),
     ];
     if (this.opts.embeddings) a.push("--embeddings");
     return a;
@@ -79,7 +84,10 @@ export class LlamaServerProcess {
       onExit: (_p, code) => {
         this.proc = null;
         if (this.stopping) return;
-        this.opts.logger.warn("llama-server exited unexpectedly", { code, restarts: this.restarts });
+        this.opts.logger.warn("llama-server exited unexpectedly", {
+          code,
+          restarts: this.restarts,
+        });
         this.restartWithBackoff();
       },
     });

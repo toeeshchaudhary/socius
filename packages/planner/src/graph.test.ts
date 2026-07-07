@@ -114,7 +114,10 @@ describe("GraphPlanner", () => {
   });
 
   test("degrades to answering when the model picks an unknown tool", async () => {
-    const backend = new ScriptedBackend(['{"action":"tool","tool":"nope","args":{}}'], ["fallback"]);
+    const backend = new ScriptedBackend(
+      ['{"action":"tool","tool":"nope","args":{}}'],
+      ["fallback"],
+    );
     const { steps, answer } = await collect(makePlanner(backend), ctx());
     expect(steps.some((s) => s.includes("unknown tool"))).toBe(true);
     expect(answer).toBe("fallback");
@@ -125,7 +128,16 @@ describe("GraphPlanner", () => {
       ...echoTool,
       name: "boom",
       async invoke(): Promise<Result<ToolResult>> {
-        return { ok: false, error: { code: "TOOL_FAILED", subsystem: "tools", message: "kaboom", recoverable: true, name: "SociusError" } as never };
+        return {
+          ok: false,
+          error: {
+            code: "TOOL_FAILED",
+            subsystem: "tools",
+            message: "kaboom",
+            recoverable: true,
+            name: "SociusError",
+          } as never,
+        };
       },
     };
     const registry = new InMemoryToolRegistry();
@@ -134,7 +146,12 @@ describe("GraphPlanner", () => {
       ['{"action":"tool","tool":"boom"}', '{"msg":"x"}', '{"action":"answer"}'],
       ["recovered"],
     );
-    const planner = new GraphPlanner({ backend, systemPrompt: "sys", tools: registry, runner: new ToolRunner(policy) });
+    const planner = new GraphPlanner({
+      backend,
+      systemPrompt: "sys",
+      tools: registry,
+      runner: new ToolRunner(policy),
+    });
     const steps: string[] = [];
     let answer = "";
     for await (const ev of planner.run(ctx())) {
@@ -147,7 +164,10 @@ describe("GraphPlanner", () => {
 
   test("respects the maxToolCalls bound (no infinite loop)", async () => {
     // Always asks for a tool — must stop at maxToolCalls, then answer.
-    const backend = new ScriptedBackend(['{"action":"tool","tool":"echo","args":{"msg":"x"}}'], ["stopped"]);
+    const backend = new ScriptedBackend(
+      ['{"action":"tool","tool":"echo","args":{"msg":"x"}}'],
+      ["stopped"],
+    );
     const { steps, answer } = await collect(makePlanner(backend), ctx());
     expect(steps.filter((s) => s.startsWith("tool_call")).length).toBe(3);
     expect(answer).toBe("stopped");

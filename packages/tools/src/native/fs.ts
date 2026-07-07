@@ -23,13 +23,17 @@ export const fsReadTool: Tool = {
     properties: { path: { type: "string", description: "Absolute or relative file path" } },
     required: ["path"],
   },
-  outputSchema: { type: "object", properties: { content: { type: "string" }, path: { type: "string" } } },
+  outputSchema: {
+    type: "object",
+    properties: { content: { type: "string" }, path: { type: "string" } },
+  },
   capabilities: ["fs.read"],
   capabilityTags: ["fs", "read", "file"],
   destructive: false,
   async invoke(args: unknown, _ctx: ToolContext): Promise<Result<ToolResult>> {
     const path = (args as { path?: unknown })?.path;
-    if (typeof path !== "string" || path.length === 0) return badInput("`path` (string) is required");
+    if (typeof path !== "string" || path.length === 0)
+      return badInput("`path` (string) is required");
     const abs = resolve(path);
     try {
       const s = await stat(abs);
@@ -59,19 +63,26 @@ export const fsWriteTool: Tool = {
     },
     required: ["path", "content"],
   },
-  outputSchema: { type: "object", properties: { path: { type: "string" }, bytes: { type: "number" } } },
+  outputSchema: {
+    type: "object",
+    properties: { path: { type: "string" }, bytes: { type: "number" } },
+  },
   capabilities: ["fs.write"],
   capabilityTags: ["fs", "write", "file"],
   destructive: true,
   async invoke(args: unknown, _ctx: ToolContext): Promise<Result<ToolResult>> {
     const a = args as { path?: unknown; content?: unknown };
-    if (typeof a.path !== "string" || a.path.length === 0) return badInput("`path` (string) is required");
+    if (typeof a.path !== "string" || a.path.length === 0)
+      return badInput("`path` (string) is required");
     if (typeof a.content !== "string") return badInput("`content` (string) is required");
     const abs = resolve(a.path);
     try {
       await mkdir(dirname(abs), { recursive: true });
       await writeFile(abs, a.content, "utf8");
-      return ok({ data: { path: abs, bytes: Buffer.byteLength(a.content) }, summary: `wrote ${basename(abs)}` });
+      return ok({
+        data: { path: abs, bytes: Buffer.byteLength(a.content) },
+        summary: `wrote ${basename(abs)}`,
+      });
     } catch (cause) {
       return { ok: false, error: error("TOOL_FAILED", "tools", `cannot write ${abs}`, { cause }) };
     }
@@ -84,9 +95,14 @@ export const fsListTool: Tool = {
   source: "native",
   inputSchema: {
     type: "object",
-    properties: { path: { type: "string", description: "Directory path (default: current directory)" } },
+    properties: {
+      path: { type: "string", description: "Directory path (default: current directory)" },
+    },
   },
-  outputSchema: { type: "object", properties: { entries: { type: "array", items: { type: "string" } } } },
+  outputSchema: {
+    type: "object",
+    properties: { entries: { type: "array", items: { type: "string" } } },
+  },
   capabilities: ["fs.read"],
   capabilityTags: ["fs", "list", "directory"],
   destructive: false,
@@ -96,9 +112,15 @@ export const fsListTool: Tool = {
     try {
       const names = await readdir(target, { withFileTypes: true });
       const entries = names.map((d) => (d.isDirectory() ? `${d.name}/` : d.name)).sort();
-      return ok({ data: { path: target, entries }, summary: `${entries.length} entries in ${target}` });
+      return ok({
+        data: { path: target, entries },
+        summary: `${entries.length} entries in ${target}`,
+      });
     } catch (cause) {
-      return { ok: false, error: error("TOOL_FAILED", "tools", `cannot list ${target}`, { cause }) };
+      return {
+        ok: false,
+        error: error("TOOL_FAILED", "tools", `cannot list ${target}`, { cause }),
+      };
     }
   },
 };

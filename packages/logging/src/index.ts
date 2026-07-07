@@ -4,7 +4,7 @@
  */
 import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import type { Logger, LogLevel, ReasoningTrace, TraceSink } from "@socius/core";
+import type { LogLevel, Logger, ReasoningTrace, TraceSink } from "@socius/core";
 import type { Subsystem } from "@socius/core";
 
 const LEVELS: Record<LogLevel, number> = { debug: 10, info: 20, warn: 30, error: 40 };

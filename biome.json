@@ -13,7 +13,10 @@
     "enabled": true,
     "rules": {
       "recommended": true,
-      "suspicious": { "noExplicitAny": "warn" },
+      "suspicious": {
+        "noExplicitAny": "warn",
+        "noAssignInExpressions": "off"
+      },
       "style": { "useNamingConvention": "off", "noNonNullAssertion": "warn" }
     }
   },

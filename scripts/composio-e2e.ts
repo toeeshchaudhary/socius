@@ -7,8 +7,8 @@
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadConfig, resolvePaths } from "../packages/config/src/index.ts";
 import { DaemonClient } from "../packages/cli/src/client.ts";
+import { loadConfig, resolvePaths } from "../packages/config/src/index.ts";
 import { createDaemon } from "../packages/daemon/src/index.ts";
 
 const dbFile = join(tmpdir(), `socius-composio-${process.pid}.db`);
@@ -24,7 +24,9 @@ const client = (await DaemonClient.connect(config.daemon.socketPath))!;
 const h = await client.health();
 process.stderr.write(`[composio] total tools: ${h.tools}\n`);
 for (const s of h.mcp ?? []) {
-  process.stderr.write(`[composio] mcp '${s.name}': connected=${s.connected} tools=${s.toolCount}${s.error ? ` err=${s.error}` : ""}\n`);
+  process.stderr.write(
+    `[composio] mcp '${s.name}': connected=${s.connected} tools=${s.toolCount}${s.error ? ` err=${s.error}` : ""}\n`,
+  );
 }
 
 client.close();

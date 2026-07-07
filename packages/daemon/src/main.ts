@@ -16,6 +16,8 @@ if (!created.ok) {
 try {
   await created.value.start();
 } catch (err) {
-  process.stderr.write(`sociusd: failed to start: ${err instanceof Error ? err.message : String(err)}\n`);
+  process.stderr.write(
+    `sociusd: failed to start: ${err instanceof Error ? err.message : String(err)}\n`,
+  );
   process.exit(1);
 }

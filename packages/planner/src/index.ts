@@ -6,13 +6,7 @@
  * step in front: pull the most relevant memories and inject them as context.
  * The node library and bounded recursion arrive in M3, behind this interface.
  */
-import type {
-  InferenceBackend,
-  MemoryStore,
-  PlanContext,
-  PlanEvent,
-  Planner,
-} from "@socius/core";
+import type { InferenceBackend, MemoryStore, PlanContext, PlanEvent, Planner } from "@socius/core";
 
 export { GraphPlanner, type GraphPlannerDeps } from "./graph.ts";
 export { completeStructured, streamAnswer, parseJson } from "./slots.ts";

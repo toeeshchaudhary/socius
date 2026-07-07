@@ -104,24 +104,36 @@ export class SqliteMemoryStore implements MemoryStore {
             now,
           );
         const rowid = Number(info.lastInsertRowid);
-        this.db.prepare("INSERT INTO vec_memories (rowid, embedding) VALUES (?, ?)").run(rowid, packVector(emb.value));
-        this.db.prepare("INSERT INTO fts_memories (rowid, content) VALUES (?, ?)").run(rowid, memory.content);
+        this.db
+          .prepare("INSERT INTO vec_memories (rowid, embedding) VALUES (?, ?)")
+          .run(rowid, packVector(emb.value));
+        this.db
+          .prepare("INSERT INTO fts_memories (rowid, content) VALUES (?, ?)")
+          .run(rowid, memory.content);
       });
       tx();
       return ok(memory);
     } catch (cause) {
-      return { ok: false, error: error("STORAGE_FAILED", "memory", "failed to store memory", { cause }) };
+      return {
+        ok: false,
+        error: error("STORAGE_FAILED", "memory", "failed to store memory", { cause }),
+      };
     }
   }
 
   async get(id: MemoryId): Promise<Result<Memory | null>> {
-    const row = this.db.query("SELECT * FROM memories WHERE id = ?").get(id) as MemoryRow | undefined;
+    const row = this.db.query("SELECT * FROM memories WHERE id = ?").get(id) as
+      | MemoryRow
+      | undefined;
     return ok(row ? this.toMemory(row) : null);
   }
 
   async update(id: MemoryId, patch: Partial<MemoryDraft>): Promise<Result<Memory>> {
-    const existing = this.db.query("SELECT * FROM memories WHERE id = ?").get(id) as MemoryRow | undefined;
-    if (!existing) return { ok: false, error: error("STORAGE_FAILED", "memory", `no memory ${id}`) };
+    const existing = this.db.query("SELECT * FROM memories WHERE id = ?").get(id) as
+      | MemoryRow
+      | undefined;
+    if (!existing)
+      return { ok: false, error: error("STORAGE_FAILED", "memory", `no memory ${id}`) };
     const now = Date.now();
     const content = patch.content ?? existing.content;
     const confidence = patch.confidence ?? existing.confidence;
@@ -138,23 +150,34 @@ export class SqliteMemoryStore implements MemoryStore {
       }
       const tx = this.db.transaction(() => {
         this.db
-          .prepare("UPDATE memories SET content=?, confidence=?, tags=?, metadata=?, updated_at=? WHERE id=?")
+          .prepare(
+            "UPDATE memories SET content=?, confidence=?, tags=?, metadata=?, updated_at=? WHERE id=?",
+          )
           .run(content, confidence, tags, metadata, now, id);
         if (newEmb) {
-          this.db.prepare("UPDATE vec_memories SET embedding=? WHERE rowid=?").run(packVector(newEmb), existing.rowid);
-          this.db.prepare("UPDATE fts_memories SET content=? WHERE rowid=?").run(content, existing.rowid);
+          this.db
+            .prepare("UPDATE vec_memories SET embedding=? WHERE rowid=?")
+            .run(packVector(newEmb), existing.rowid);
+          this.db
+            .prepare("UPDATE fts_memories SET content=? WHERE rowid=?")
+            .run(content, existing.rowid);
         }
       });
       tx();
       const updated = this.db.query("SELECT * FROM memories WHERE id = ?").get(id) as MemoryRow;
       return ok(this.toMemory(updated));
     } catch (cause) {
-      return { ok: false, error: error("STORAGE_FAILED", "memory", "failed to update memory", { cause }) };
+      return {
+        ok: false,
+        error: error("STORAGE_FAILED", "memory", "failed to update memory", { cause }),
+      };
     }
   }
 
   async forget(id: MemoryId): Promise<Result<void>> {
-    const row = this.db.query("SELECT rowid FROM memories WHERE id = ?").get(id) as { rowid: number } | undefined;
+    const row = this.db.query("SELECT rowid FROM memories WHERE id = ?").get(id) as
+      | { rowid: number }
+      | undefined;
     if (!row) return ok(undefined);
     try {
       const tx = this.db.transaction(() => {
@@ -165,7 +188,10 @@ export class SqliteMemoryStore implements MemoryStore {
       tx();
       return ok(undefined);
     } catch (cause) {
-      return { ok: false, error: error("STORAGE_FAILED", "memory", "failed to forget memory", { cause }) };
+      return {
+        ok: false,
+        error: error("STORAGE_FAILED", "memory", "failed to forget memory", { cause }),
+      };
     }
   }
 
@@ -191,7 +217,9 @@ export class SqliteMemoryStore implements MemoryStore {
     const now = Date.now();
     const scored: RetrievedMemory[] = [];
     for (const [rowid, similarity] of sims) {
-      const row = this.db.query("SELECT * FROM memories WHERE rowid = ?").get(rowid) as MemoryRow | undefined;
+      const row = this.db.query("SELECT * FROM memories WHERE rowid = ?").get(rowid) as
+        | MemoryRow
+        | undefined;
       if (!row) continue;
       if (kindFilter && !kindFilter.has(row.kind as MemoryKind)) continue;
       const memory = this.toMemory(row);
@@ -219,16 +247,22 @@ export class SqliteMemoryStore implements MemoryStore {
     return ok(out);
   }
 
-  async list(filter?: { kinds?: readonly MemoryKind[]; limit?: number }): Promise<Result<readonly Memory[]>> {
+  async list(filter?: { kinds?: readonly MemoryKind[]; limit?: number }): Promise<
+    Result<readonly Memory[]>
+  > {
     const limit = filter?.limit ?? 100;
     let rows: MemoryRow[];
     if (filter?.kinds && filter.kinds.length > 0) {
       const placeholders = filter.kinds.map(() => "?").join(",");
       rows = this.db
-        .query(`SELECT * FROM memories WHERE kind IN (${placeholders}) ORDER BY updated_at DESC LIMIT ?`)
+        .query(
+          `SELECT * FROM memories WHERE kind IN (${placeholders}) ORDER BY updated_at DESC LIMIT ?`,
+        )
         .all(...filter.kinds, limit) as MemoryRow[];
     } else {
-      rows = this.db.query("SELECT * FROM memories ORDER BY updated_at DESC LIMIT ?").all(limit) as MemoryRow[];
+      rows = this.db
+        .query("SELECT * FROM memories ORDER BY updated_at DESC LIMIT ?")
+        .all(limit) as MemoryRow[];
     }
     return ok(rows.map((r) => this.toMemory(r)));
   }
@@ -239,16 +273,25 @@ export class SqliteMemoryStore implements MemoryStore {
     const r = await this.embedder.embed([text]);
     if (!r.ok) return r;
     const v = r.value[0];
-    if (!v) return { ok: false, error: error("BACKEND_UNAVAILABLE", "memory", "embedder returned no vector") };
+    if (!v)
+      return {
+        ok: false,
+        error: error("BACKEND_UNAVAILABLE", "memory", "embedder returned no vector"),
+      };
     return ok(normalize(v));
   }
 
   private vectorCandidates(vec: Float32Array, k: number): { rowid: number; similarity: number }[] {
     const rows = this.db
-      .query("SELECT rowid, distance FROM vec_memories WHERE embedding MATCH ? ORDER BY distance LIMIT ?")
+      .query(
+        "SELECT rowid, distance FROM vec_memories WHERE embedding MATCH ? ORDER BY distance LIMIT ?",
+      )
       .all(packVector(vec), k) as { rowid: number; distance: number }[];
     // normalized vectors: cosine = 1 - d^2/2
-    return rows.map((r) => ({ rowid: r.rowid, similarity: Math.max(0, 1 - (r.distance * r.distance) / 2) }));
+    return rows.map((r) => ({
+      rowid: r.rowid,
+      similarity: Math.max(0, 1 - (r.distance * r.distance) / 2),
+    }));
   }
 
   private keywordCandidates(text: string, k: number): number[] {
@@ -260,7 +303,9 @@ export class SqliteMemoryStore implements MemoryStore {
     const match = terms.map((t) => `"${t}"`).join(" OR ");
     try {
       const rows = this.db
-        .query("SELECT rowid FROM fts_memories WHERE fts_memories MATCH ? ORDER BY bm25(fts_memories) LIMIT ?")
+        .query(
+          "SELECT rowid FROM fts_memories WHERE fts_memories MATCH ? ORDER BY bm25(fts_memories) LIMIT ?",
+        )
         .all(match, k) as { rowid: number }[];
       return rows.map((r) => r.rowid);
     } catch {

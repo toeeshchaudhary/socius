@@ -6,8 +6,8 @@
  */
 import { createReadStream, existsSync } from "node:fs";
 import { createInterface } from "node:readline";
-import { IPC_PROTOCOL_VERSION } from "@socius/core";
 import { loadConfig, resolvePaths } from "@socius/config";
+import { IPC_PROTOCOL_VERSION } from "@socius/core";
 import { DaemonClient, ensureDaemon } from "./client.ts";
 import { readStdin } from "./index.ts";
 
@@ -66,7 +66,9 @@ async function doctor(): Promise<number> {
   w(`  [${mark(true)}] socket        ${config.daemon.socketPath}`);
   w(`  [    ] daemon        ${daemonLine}`);
   if (extra) process.stdout.write(extra);
-  w(`  protocol v${IPC_PROTOCOL_VERSION} · gpuLayers ${config.model.gpuLayers} · ctx ${config.model.contextWindow}`);
+  w(
+    `  protocol v${IPC_PROTOCOL_VERSION} · gpuLayers ${config.model.gpuLayers} · ctx ${config.model.contextWindow}`,
+  );
   if (!modelOk) w("  ! model file missing — set model.path in config.toml");
   if (!binOk) w("  ! llama-server not found — set inference.llamaServerBin");
   return modelOk && binOk ? 0 : 1;
@@ -107,7 +109,9 @@ async function mem(args: readonly string[]): Promise<number> {
         return 2;
       }
       const { memory: m } = await client.memShow(id);
-      process.stdout.write(`id      ${m.id}\nkind    ${m.kind}\nconf    ${m.confidence}\ntags    ${(m.tags ?? []).join(", ")}\n\n${m.content}\n`);
+      process.stdout.write(
+        `id      ${m.id}\nkind    ${m.kind}\nconf    ${m.confidence}\ntags    ${(m.tags ?? []).join(", ")}\n\n${m.content}\n`,
+      );
       return 0;
     }
     if (sub === "edit") {
@@ -161,7 +165,9 @@ async function knowledge(args: readonly string[]): Promise<number> {
         return 0;
       }
       for (const r of results) {
-        process.stdout.write(`• ${r.ref ?? "?"}\n  ${r.content.replace(/\n/g, " ").slice(0, 120)}\n`);
+        process.stdout.write(
+          `• ${r.ref ?? "?"}\n  ${r.content.replace(/\n/g, " ").slice(0, 120)}\n`,
+        );
       }
       return 0;
     }
@@ -191,7 +197,8 @@ async function trace(args: readonly string[]): Promise<number> {
     } catch {
       continue;
     }
-    const clip = (s: string, k: number) => (s.length > k ? `${s.slice(0, k)}…` : s).replace(/\n/g, " ");
+    const clip = (s: string, k: number) =>
+      (s.length > k ? `${s.slice(0, k)}…` : s).replace(/\n/g, " ");
     process.stdout.write(`\n● ${t.slot}  (${t.latencyMs}ms, ${t.valid ? "valid" : "INVALID"})\n`);
     process.stdout.write(`  prompt: ${clip(t.prompt, full ? 100000 : 200)}\n`);
     process.stdout.write(`  output: ${clip(t.rawOutput, full ? 100000 : 200)}\n`);
@@ -230,7 +237,11 @@ async function schedule(args: readonly string[]): Promise<number> {
       return 0;
     }
     for (const s of schedules) {
-      const when = s.everyMinutes ? `every ${s.everyMinutes}m` : s.dailyAt ? `daily at ${s.dailyAt}` : "manual";
+      const when = s.everyMinutes
+        ? `every ${s.everyMinutes}m`
+        : s.dailyAt
+          ? `daily at ${s.dailyAt}`
+          : "manual";
       process.stdout.write(`${s.enabled ? "●" : "○"} ${s.name.padEnd(16)} ${when}\n`);
     }
     return 0;
@@ -304,10 +315,14 @@ async function main(argv: readonly string[]): Promise<number> {
     process.stderr.write("  remember <text>            save a memory\n");
     process.stderr.write("  mem [list|show|edit|forget]  inspect/edit memory\n");
     process.stderr.write("  knowledge [index|search]   Markdown knowledge base\n");
-    process.stderr.write("  morning                    a briefing (git + email/calendar if available)\n");
+    process.stderr.write(
+      "  morning                    a briefing (git + email/calendar if available)\n",
+    );
     process.stderr.write("  schedule [list|run <name>] background tasks\n");
     process.stderr.write("  trace [n] [--full]         replay recent model reasoning\n");
-    process.stderr.write("  serve                      run Socius as an MCP server (for other clients)\n");
+    process.stderr.write(
+      "  serve                      run Socius as an MCP server (for other clients)\n",
+    );
     process.stderr.write("  doctor | restart           status / restart the daemon\n");
     return 2;
   }

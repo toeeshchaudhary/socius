@@ -7,15 +7,15 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { defaultConfig, resolvePaths } from "../packages/config/src/index.ts";
 import { DaemonClient } from "../packages/cli/src/client.ts";
+import { defaultConfig, resolvePaths } from "../packages/config/src/index.ts";
 import { createDaemon } from "../packages/daemon/src/index.ts";
 
 const kb = await mkdtemp(join(tmpdir(), "socius-kb-e2e-"));
 const dbFile = join(kb, "db.sqlite");
 await writeFile(
   join(kb, "infra.md"),
-  `---\ntitle: Infra notes\ntags: [infra]\n---\n\nThe production database for Project Nimbus runs on port 6789 and is backed up every night at 02:30.\n`,
+  "---\ntitle: Infra notes\ntags: [infra]\n---\n\nThe production database for Project Nimbus runs on port 6789 and is backed up every night at 02:30.\n",
 );
 
 const base = defaultConfig(resolvePaths());
@@ -32,11 +32,17 @@ const idx = await client.knowledgeIndex();
 process.stderr.write(`[kb] indexed ${idx.files} file(s), ${idx.chunks} chunk(s)\n`);
 
 const search = await client.knowledgeSearch("production database port");
-process.stderr.write(`[kb] search -> ${search.results.length} hit(s); top: ${search.results[0]?.content?.slice(0, 60)}\n`);
+process.stderr.write(
+  `[kb] search -> ${search.results.length} hit(s); top: ${search.results[0]?.content?.slice(0, 60)}\n`,
+);
 
 process.stderr.write("[kb] --- answer (needs the indexed note) ---\n");
 await client.infer(
-  { input: "What port does the Project Nimbus production database run on? Answer in one short sentence.", maxTokens: 48 },
+  {
+    input:
+      "What port does the Project Nimbus production database run on? Answer in one short sentence.",
+    maxTokens: 48,
+  },
   (t) => process.stdout.write(t),
 );
 process.stdout.write("\n");

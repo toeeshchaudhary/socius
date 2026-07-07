@@ -8,13 +8,16 @@
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { z } from "zod";
 import { loadConfig, resolvePaths } from "@socius/config";
+import { z } from "zod";
 import { ensureDaemon } from "./client.ts";
 
 /** The subset of the daemon client the MCP server proxies to. */
 export interface SociusBackend {
-  memSearch(query: string, k?: number): Promise<{ results: { content: string; kind: string; score: number }[] }>;
+  memSearch(
+    query: string,
+    k?: number,
+  ): Promise<{ results: { content: string; kind: string; score: number }[] }>;
   knowledgeSearch(query: string): Promise<{ results: { content: string; ref?: string }[] }>;
   remember(content: string): Promise<{ id: string }>;
 }
@@ -26,7 +29,8 @@ export function buildSociusMcpServer(client: SociusBackend): McpServer {
   server.registerTool(
     "search_memory",
     {
-      description: "Search Socius's long-term memory (facts, preferences, decisions the user told Socius to remember).",
+      description:
+        "Search Socius's long-term memory (facts, preferences, decisions the user told Socius to remember).",
       inputSchema: { query: z.string().describe("What to look for"), limit: z.number().optional() },
       annotations: { readOnlyHint: true },
     },

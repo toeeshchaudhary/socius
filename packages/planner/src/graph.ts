@@ -85,21 +85,37 @@ export class GraphPlanner implements Planner {
       // Only the chosen tool's schema is used, so the prompt stays small and the
       // args are guaranteed to match the schema (works for complex MCP tools).
       const args = await this.planArgs(tool, ctx, memoryBlock.text, outcomes);
-      yield step("plan", `${tool.name}(${Object.keys(args).join(", ")})${decision.reason ? ` — ${decision.reason}` : ""}`);
+      yield step(
+        "plan",
+        `${tool.name}(${Object.keys(args).join(", ")})${decision.reason ? ` — ${decision.reason}` : ""}`,
+      );
       yield step("tool_call", tool.name);
       const res = await this.deps.runner.run(tool, args, {
         mode: this.mode,
         reasoning: decision.reason ?? `use ${tool.name}`,
-        ctx: { callId: asToolCallId(`${ctx.requestId}-${i}`), ...(ctx.signal ? { signal: ctx.signal } : {}) },
+        ctx: {
+          callId: asToolCallId(`${ctx.requestId}-${i}`),
+          ...(ctx.signal ? { signal: ctx.signal } : {}),
+        },
       });
       if (res.ok) {
-        outcomes.push({ tool: tool.name, ok: true, summary: res.value.summary ?? tool.name, data: res.value.data });
+        outcomes.push({
+          tool: tool.name,
+          ok: true,
+          summary: res.value.summary ?? tool.name,
+          data: res.value.data,
+        });
       } else {
         // Reflect: record the failure and loop — the next decide() sees it in
         // "Tool results so far" and can correct (different tool/args) or answer.
         // Bounded by maxToolCalls, so a persistently-failing tool can't spin.
         yield step("reflect", `${tool.name} failed: ${res.error.message} — reconsidering`);
-        outcomes.push({ tool: tool.name, ok: false, summary: `ERROR: ${res.error.message}`, data: null });
+        outcomes.push({
+          tool: tool.name,
+          ok: false,
+          summary: `ERROR: ${res.error.message}`,
+          data: null,
+        });
       }
     }
 
@@ -120,7 +136,9 @@ export class GraphPlanner implements Planner {
   }
 
   private trace(ctx: PlanContext, slot: string): TraceContext | undefined {
-    return this.deps.traceSink ? { sink: this.deps.traceSink, traceId: ctx.traceId, slot } : undefined;
+    return this.deps.traceSink
+      ? { sink: this.deps.traceSink, traceId: ctx.traceId, slot }
+      : undefined;
   }
 
   private async retrieve(ctx: PlanContext): Promise<{ text: string; label: string }> {
@@ -147,19 +165,16 @@ export class GraphPlanner implements Planner {
     // schemas. The model fills args from param names; invalid args are caught by
     // the tool and handled by the reflect loop.
     const toolList = tools
-      .map((t) => `- ${t.name}: ${clip(t.description, 140)} (params: ${paramNames(t.inputSchema) || "none"})`)
+      .map(
+        (t) =>
+          `- ${t.name}: ${clip(t.description, 140)} (params: ${paramNames(t.inputSchema) || "none"})`,
+      )
       .join("\n");
     const priorResults = outcomes.length
       ? `\nTool results so far:\n${outcomes.map((o) => `- ${o.tool}: ${o.summary}`).join("\n")}`
       : "";
-    const system =
-      "You decide whether a tool call is needed to answer the user's request, or whether you can answer directly. " +
-      "Only use a tool if it is clearly required to get information you do not have. Pick the tool by name; " +
-      "you will be asked for its arguments separately. " +
-      `Available tools:\n${toolList}\n` +
-      'Respond with JSON only: {"action":"answer"} to answer directly, or ' +
-      '{"action":"tool","tool":"<name>","reason":"<why>"} to call a tool.';
-    const user = `Request: ${ctx.input}${ctx.stdin ? `\n(has piped input)` : ""}${memory ? `\nContext:\n${memory}` : ""}${priorResults}`;
+    const system = `You decide whether a tool call is needed to answer the user's request, or whether you can answer directly. Only use a tool if it is clearly required to get information you do not have. Pick the tool by name; you will be asked for its arguments separately. Available tools:\n${toolList}\nRespond with JSON only: {"action":"answer"} to answer directly, or {"action":"tool","tool":"<name>","reason":"<why>"} to call a tool.`;
+    const user = `Request: ${ctx.input}${ctx.stdin ? "\n(has piped input)" : ""}${memory ? `\nContext:\n${memory}` : ""}${priorResults}`;
 
     const dt = this.trace(ctx, "decide");
     const decision = await completeStructured<Decision>(
@@ -188,10 +203,7 @@ export class GraphPlanner implements Planner {
     const priorResults = outcomes.length
       ? `\nResults so far:\n${outcomes.map((o) => `- ${o.tool}: ${o.summary}`).join("\n")}`
       : "";
-    const system =
-      `Produce the JSON arguments to call the tool "${tool.name}". ${clip(tool.description, 400)} ` +
-      "Respond with ONLY a JSON object of arguments that satisfies the tool's schema. " +
-      "Use empty/default values if unsure; do not invent unrelated fields.";
+    const system = `Produce the JSON arguments to call the tool "${tool.name}". ${clip(tool.description, 400)} Respond with ONLY a JSON object of arguments that satisfies the tool's schema. Use empty/default values if unsure; do not invent unrelated fields.`;
     const user = `${ctx.input}${ctx.stdin ? `\n\n${ctx.stdin.slice(0, 1500)}` : ""}${memory ? `\nContext:\n${memory}` : ""}${priorResults}`;
 
     const t = this.trace(ctx, `plan:${tool.name}`);

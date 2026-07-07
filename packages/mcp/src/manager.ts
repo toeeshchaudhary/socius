@@ -70,7 +70,11 @@ export class McpManager {
     const env: Record<string, string> = {};
     for (const [k, v] of Object.entries(process.env)) if (typeof v === "string") env[k] = v;
     Object.assign(env, cfg.env ?? {});
-    return new StdioClientTransport({ command: cfg.command, args: [...(cfg.args ?? [])], env }) as unknown as Transport;
+    return new StdioClientTransport({
+      command: cfg.command,
+      args: [...(cfg.args ?? [])],
+      env,
+    }) as unknown as Transport;
   }
 
   status(): readonly McpServerStatus[] {

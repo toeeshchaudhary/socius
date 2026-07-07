@@ -9,8 +9,8 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { defaultConfig, resolvePaths } from "../packages/config/src/index.ts";
 import { DaemonClient } from "../packages/cli/src/client.ts";
+import { defaultConfig, resolvePaths } from "../packages/config/src/index.ts";
 import { createDaemon } from "../packages/daemon/src/index.ts";
 
 const dbFile = join(await mkdtemp(join(tmpdir(), "socius-m3-")), "db.sqlite");
@@ -35,9 +35,15 @@ async function ask(label: string, input: string) {
 }
 
 // 1. Should trigger a tool (git.status / git.log on this repo).
-await ask("tool: git", "What is the current git status of this repository? Summarize in one sentence.");
+await ask(
+  "tool: git",
+  "What is the current git status of this repository? Summarize in one sentence.",
+);
 // 2. Should trigger fs.list.
-await ask("tool: fs.list", "List the entries in the current directory, then say how many there are.");
+await ask(
+  "tool: fs.list",
+  "List the entries in the current directory, then say how many there are.",
+);
 // 3. Should answer directly, no tool.
 await ask("no tool", "In one sentence, what is 2+2?");
 

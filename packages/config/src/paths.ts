@@ -31,7 +31,10 @@ export function resolvePaths(): SociusPaths {
   const configDir = join(env("XDG_CONFIG_HOME") ?? join(home, ".config"), "socius");
   const dataDir = join(env("XDG_DATA_HOME") ?? join(home, ".local", "share"), "socius");
   const stateDir = join(env("XDG_STATE_HOME") ?? join(home, ".local", "state"), "socius");
-  const runtimeDir = join(env("XDG_RUNTIME_DIR") ?? `/tmp/socius-${process.getuid?.() ?? 0}`, "socius");
+  const runtimeDir = join(
+    env("XDG_RUNTIME_DIR") ?? `/tmp/socius-${process.getuid?.() ?? 0}`,
+    "socius",
+  );
 
   return {
     configDir,

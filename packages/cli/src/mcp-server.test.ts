@@ -7,10 +7,18 @@ import { type SociusBackend, buildSociusMcpServer } from "./mcp-server.ts";
 class FakeBackend implements SociusBackend {
   readonly remembered: string[] = [];
   async memSearch(query: string) {
-    return { results: query.includes("blue") ? [{ content: "the sky is blue", kind: "long_term", score: 0.9 }] : [] };
+    return {
+      results: query.includes("blue")
+        ? [{ content: "the sky is blue", kind: "long_term", score: 0.9 }]
+        : [],
+    };
   }
   async knowledgeSearch(query: string) {
-    return { results: query.includes("socius") ? [{ content: "Socius uses SQLite", ref: "notes/x.md" }] : [] };
+    return {
+      results: query.includes("socius")
+        ? [{ content: "Socius uses SQLite", ref: "notes/x.md" }]
+        : [],
+    };
   }
   async remember(content: string) {
     this.remembered.push(content);
@@ -37,10 +45,13 @@ describe("Socius MCP server", () => {
 
   test("search_memory proxies to the backend", async () => {
     const client = await connectToServer(new FakeBackend());
-    const res = (await client.callTool({ name: "search_memory", arguments: { query: "what color is the sky blue" } })) as {
+    const res = (await client.callTool({
+      name: "search_memory",
+      arguments: { query: "what color is the sky blue" },
+    })) as {
       content: { text: string }[];
     };
-    expect(res.content[0]!.text).toContain("the sky is blue");
+    expect(res.content[0]?.text).toContain("the sky is blue");
     await client.close();
   });
 

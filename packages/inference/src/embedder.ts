@@ -32,13 +32,19 @@ export class LlamaCppEmbedder implements Embedder {
         body: JSON.stringify({ input: texts, model: this.opts.modelId }),
       });
       if (!res.ok) {
-        return { ok: false, error: error("BACKEND_UNAVAILABLE", "inference", `embeddings ${res.status}`) };
+        return {
+          ok: false,
+          error: error("BACKEND_UNAVAILABLE", "inference", `embeddings ${res.status}`),
+        };
       }
       const json = (await res.json()) as { data?: { embedding: number[] }[] };
       const vecs = (json.data ?? []).map((d) => Float32Array.from(d.embedding));
       return ok(vecs);
     } catch (cause) {
-      return { ok: false, error: error("BACKEND_UNAVAILABLE", "inference", "embeddings failed", { cause }) };
+      return {
+        ok: false,
+        error: error("BACKEND_UNAVAILABLE", "inference", "embeddings failed", { cause }),
+      };
     }
   }
 
@@ -47,7 +53,12 @@ export class LlamaCppEmbedder implements Embedder {
       const res = await fetch(`${this.opts.baseUrl}/health`);
       return { healthy: res.ok, modelId: this.opts.modelId, contextWindow: 0 };
     } catch {
-      return { healthy: false, modelId: this.opts.modelId, contextWindow: 0, detail: "unreachable" };
+      return {
+        healthy: false,
+        modelId: this.opts.modelId,
+        contextWindow: 0,
+        detail: "unreachable",
+      };
     }
   }
 }
@@ -70,7 +81,10 @@ export class HashingEmbedder implements Embedder {
 
   private vec(text: string): Float32Array {
     const v = new Float32Array(this.dimensions);
-    const s = ` ${text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `;
+    const s = ` ${text
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim()} `;
     for (let i = 0; i < s.length - 2; i++) {
       const tri = s.slice(i, i + 3);
       const idx = hash(tri) % this.dimensions;

@@ -58,7 +58,10 @@ export interface AnswerParams {
   readonly trace?: TraceContext;
 }
 
-export async function* streamAnswer(backend: InferenceBackend, p: AnswerParams): AsyncIterable<string> {
+export async function* streamAnswer(
+  backend: InferenceBackend,
+  p: AnswerParams,
+): AsyncIterable<string> {
   const userContent = p.stdin ? `${p.input}\n\n---\n${p.stdin}` : p.input;
   const messages: ChatMessage[] = [
     { role: "system", content: p.system },

@@ -7,8 +7,8 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { defaultConfig, resolvePaths } from "../packages/config/src/index.ts";
 import { DaemonClient } from "../packages/cli/src/client.ts";
+import { defaultConfig, resolvePaths } from "../packages/config/src/index.ts";
 import { createDaemon } from "../packages/daemon/src/index.ts";
 
 const dbFile = join(await mkdtemp(join(tmpdir(), "socius-mcp-")), "db.sqlite");
@@ -26,12 +26,19 @@ const daemon = created.value;
 await daemon.start();
 
 const client = (await DaemonClient.connect(config.daemon.socketPath))!;
-const h = (await client.health()) as unknown as { tools: number; mcp: { name: string; connected: boolean; toolCount: number }[] };
+const h = (await client.health()) as unknown as {
+  tools: number;
+  mcp: { name: string; connected: boolean; toolCount: number }[];
+};
 process.stderr.write(`[mcp] tools registered: ${h.tools}; mcp servers: ${JSON.stringify(h.mcp)}\n`);
 
 process.stderr.write("[mcp] --- answer (needs the MCP tool) ---\n");
 await client.infer(
-  { input: "What is this project's secret internal codename? Use a tool to find out, then answer in one sentence.", maxTokens: 96 },
+  {
+    input:
+      "What is this project's secret internal codename? Use a tool to find out, then answer in one sentence.",
+    maxTokens: 96,
+  },
   (t) => process.stdout.write(t),
 );
 process.stdout.write("\n");

@@ -5,12 +5,7 @@
 import { closeSync, existsSync, openSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
-import type {
-  HandshakeResponse,
-  InferNotification,
-  InferParams,
-  SociusConfig,
-} from "@socius/core";
+import type { HandshakeResponse, InferNotification, InferParams, SociusConfig } from "@socius/core";
 import { IPC_PROTOCOL_VERSION } from "@socius/core";
 
 type Sock = ReturnType<typeof Bun.connect> extends Promise<infer S> ? S : never;
@@ -40,6 +35,7 @@ export class DaemonClient {
   static async connect(socketPath: string): Promise<DaemonClient | null> {
     if (!existsSync(socketPath)) return null;
     try {
+      // biome-ignore lint/style/useConst: reassigned below, after the socket handlers capture it
       let client!: DaemonClient;
       const socket = await Bun.connect({
         unix: socketPath,
@@ -63,7 +59,13 @@ export class DaemonClient {
       const line = this.buf.slice(0, nl).trim();
       this.buf = this.buf.slice(nl + 1);
       if (!line) continue;
-      let msg: { id?: number | string; method?: string; params?: unknown; result?: unknown; error?: { message: string } };
+      let msg: {
+        id?: number | string;
+        method?: string;
+        params?: unknown;
+        result?: unknown;
+        error?: { message: string };
+      };
       try {
         msg = JSON.parse(line);
       } catch {
@@ -149,7 +151,9 @@ export class DaemonClient {
     return this.request("mem.forget", { id });
   }
 
-  memShow(id: string): Promise<{ memory: MemoryListItem & { source?: unknown; createdAt?: number } }> {
+  memShow(
+    id: string,
+  ): Promise<{ memory: MemoryListItem & { source?: unknown; createdAt?: number } }> {
     return this.request("mem.show", { id });
   }
 
@@ -157,7 +161,10 @@ export class DaemonClient {
     return this.request("mem.edit", { id, content });
   }
 
-  memSearch(text: string, k?: number): Promise<{ results: { content: string; kind: string; score: number }[] }> {
+  memSearch(
+    text: string,
+    k?: number,
+  ): Promise<{ results: { content: string; kind: string; score: number }[] }> {
     return this.request("mem.search", { text, ...(k ? { k } : {}) });
   }
 
@@ -169,7 +176,9 @@ export class DaemonClient {
     return this.request("knowledge.search", { text });
   }
 
-  scheduleList(): Promise<{ schedules: { name: string; enabled: boolean; everyMinutes?: number; dailyAt?: string }[] }> {
+  scheduleList(): Promise<{
+    schedules: { name: string; enabled: boolean; everyMinutes?: number; dailyAt?: string }[];
+  }> {
     return this.request("schedule.list");
   }
 

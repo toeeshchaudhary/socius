@@ -17,7 +17,9 @@ export function loadConfig(paths: SociusPaths = resolvePaths()): SociusConfig {
   try {
     parsed = parseToml(readFileSync(paths.configFile, "utf8"));
   } catch (cause) {
-    throw new Error(`invalid config at ${paths.configFile}: ${cause instanceof Error ? cause.message : cause}`);
+    throw new Error(
+      `invalid config at ${paths.configFile}: ${cause instanceof Error ? cause.message : cause}`,
+    );
   }
   return deepMerge(defaults, expandEnv(parsed)) as SociusConfig;
 }

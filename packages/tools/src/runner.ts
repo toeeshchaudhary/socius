@@ -47,7 +47,14 @@ export class ToolRunner {
       outcome.decision === "confirm" || (tool.destructive && opts.mode === "live");
     if (needsConfirm) {
       if (!this.confirmer) {
-        return { ok: false, error: error("CONFIRMATION_REQUIRED", "permissions", `confirmation required to run ${tool.name}`) };
+        return {
+          ok: false,
+          error: error(
+            "CONFIRMATION_REQUIRED",
+            "permissions",
+            `confirmation required to run ${tool.name}`,
+          ),
+        };
       }
       const answered = await this.confirmer.confirm(req);
       if (!answered.ok) return answered;

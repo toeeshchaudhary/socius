@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -60,9 +60,11 @@ class FakeMemoryStore implements MemoryStore {
     out.sort((a, b) => b.score - a.score);
     return ok(out);
   }
-  async list(filter?: { kinds?: readonly MemoryKind[]; limit?: number }): Promise<Result<readonly Memory[]>> {
+  async list(filter?: { kinds?: readonly MemoryKind[]; limit?: number }): Promise<
+    Result<readonly Memory[]>
+  > {
     let all = [...this.rows.values()];
-    if (filter?.kinds) all = all.filter((m) => filter.kinds!.includes(m.kind));
+    if (filter?.kinds) all = all.filter((m) => filter.kinds?.includes(m.kind));
     return ok(all);
   }
 }
@@ -74,7 +76,7 @@ describe("indexKnowledge", () => {
     await mkdir(join(dir, "projects"), { recursive: true });
     await writeFile(
       join(dir, "projects", "socius.md"),
-      `---\ntitle: Socius\ntags: [architecture]\n---\n\nSocius uses SQLite and sqlite-vec for vector search.\n\nThe planner is a deterministic state graph.\n`,
+      "---\ntitle: Socius\ntags: [architecture]\n---\n\nSocius uses SQLite and sqlite-vec for vector search.\n\nThe planner is a deterministic state graph.\n",
     );
     await writeFile(join(dir, "notes.md"), "# Notes\n\nRemember to water the plants on Sunday.\n");
 
@@ -82,10 +84,12 @@ describe("indexKnowledge", () => {
     expect(res.files).toBe(2);
     expect(res.chunks).toBeGreaterThanOrEqual(2);
 
-    const found = unwrap(await store.retrieve({ text: "vector search sqlite", kinds: ["knowledge"] }));
+    const found = unwrap(
+      await store.retrieve({ text: "vector search sqlite", kinds: ["knowledge"] }),
+    );
     expect(found.length).toBeGreaterThan(0);
-    expect(found[0]!.memory.content.toLowerCase()).toContain("sqlite");
-    expect(found[0]!.memory.source.ref).toBe("projects/socius.md");
+    expect(found[0]?.memory.content.toLowerCase()).toContain("sqlite");
+    expect(found[0]?.memory.source.ref).toBe("projects/socius.md");
 
     await rm(dir, { recursive: true, force: true });
   });

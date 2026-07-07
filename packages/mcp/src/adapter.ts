@@ -41,11 +41,20 @@ export function mcpToolToNative(serverName: string, client: Client, mcp: McpTool
           .map((c) => c.text)
           .join("\n");
         if (res.isError) {
-          return { ok: false, error: error("TOOL_FAILED", "mcp", text || `${mcp.name} reported an error`) };
+          return {
+            ok: false,
+            error: error("TOOL_FAILED", "mcp", text || `${mcp.name} reported an error`),
+          };
         }
-        return ok({ data: { content: res.content ?? [], text }, summary: `${serverName}/${mcp.name}` });
+        return ok({
+          data: { content: res.content ?? [], text },
+          summary: `${serverName}/${mcp.name}`,
+        });
       } catch (cause) {
-        return { ok: false, error: error("TOOL_FAILED", "mcp", `MCP call ${mcp.name} failed`, { cause }) };
+        return {
+          ok: false,
+          error: error("TOOL_FAILED", "mcp", `MCP call ${mcp.name} failed`, { cause }),
+        };
       }
     },
   };

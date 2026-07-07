@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
 import type { Tool } from "@socius/core";
 import { asToolCallId } from "@socius/core";
+import { z } from "zod";
 import { mcpToolToNative } from "./adapter.ts";
 
 const ctx = () => ({ callId: asToolCallId("c1") });
@@ -17,7 +17,11 @@ describe("mcpToolToNative", () => {
     const server = new McpServer({ name: "srv", version: "1.0.0" });
     server.registerTool(
       "greet",
-      { description: "Greet someone", inputSchema: { name: z.string() }, annotations: { readOnlyHint: true } },
+      {
+        description: "Greet someone",
+        inputSchema: { name: z.string() },
+        annotations: { readOnlyHint: true },
+      },
       async ({ name }) => ({ content: [{ type: "text", text: `Hello, ${name}!` }] }),
     );
     server.registerTool(

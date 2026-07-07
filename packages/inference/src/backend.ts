@@ -88,11 +88,18 @@ export class LlamaCppBackend implements InferenceBackend {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ content: text }),
       });
-      if (!res.ok) return { ok: false, error: error("BACKEND_UNAVAILABLE", "inference", `tokenize ${res.status}`) };
+      if (!res.ok)
+        return {
+          ok: false,
+          error: error("BACKEND_UNAVAILABLE", "inference", `tokenize ${res.status}`),
+        };
       const json = (await res.json()) as { tokens?: unknown[] };
       return ok(Array.isArray(json.tokens) ? json.tokens.length : 0);
     } catch (cause) {
-      return { ok: false, error: error("BACKEND_UNAVAILABLE", "inference", "tokenize failed", { cause }) };
+      return {
+        ok: false,
+        error: error("BACKEND_UNAVAILABLE", "inference", "tokenize failed", { cause }),
+      };
     }
   }
 

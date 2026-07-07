@@ -3,11 +3,11 @@
  * produces the derived, rebuildable index (knowledge-kind memories). A full
  * reindex clears prior knowledge memories and rebuilds — cheap and idempotent.
  */
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import { extname, join, relative } from "node:path";
-import matter from "gray-matter";
 import type { MemoryStore, Result } from "@socius/core";
 import { ok } from "@socius/core";
+import matter from "gray-matter";
 
 const MAX_CHUNK_CHARS = 600;
 
@@ -16,7 +16,10 @@ export interface IndexResult {
   readonly chunks: number;
 }
 
-export async function indexKnowledge(dir: string, store: MemoryStore): Promise<Result<IndexResult>> {
+export async function indexKnowledge(
+  dir: string,
+  store: MemoryStore,
+): Promise<Result<IndexResult>> {
   // Clear existing knowledge memories (derived data) for a clean rebuild.
   const existing = await store.list({ kinds: ["knowledge"], limit: 100_000 });
   if (existing.ok) {

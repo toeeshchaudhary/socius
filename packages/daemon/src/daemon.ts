@@ -5,6 +5,7 @@
 import { type FSWatcher, existsSync, watch } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
+import { loadConfig, resolvePaths } from "@socius/config";
 import type {
   ConfirmationProvider,
   Embedder,
@@ -24,7 +25,6 @@ import type {
   TraceSink,
 } from "@socius/core";
 import { IPC_PROTOCOL_VERSION, asMemoryId, asRequestId, asTraceId, ok } from "@socius/core";
-import { loadConfig, resolvePaths } from "@socius/config";
 import { indexKnowledge } from "@socius/knowledge";
 import { FileTraceSink, NullTraceSink } from "@socius/logging";
 import { McpManager } from "@socius/mcp";
@@ -34,8 +34,8 @@ import { GraphPlanner } from "@socius/planner";
 import { SociusDatabase } from "@socius/storage";
 import { InMemoryToolRegistry, ToolRunner, builtinTools } from "@socius/tools";
 import { loadSystemPrompt } from "./prompts.ts";
-import type { ModelRuntime } from "./runtime.ts";
 import { LineBuffer, type WireRequest, errorResponse, notify, response } from "./rpc.ts";
+import type { ModelRuntime } from "./runtime.ts";
 
 interface ConnState {
   buffer: LineBuffer;
@@ -131,7 +131,10 @@ export class Daemon {
     // store. A failure here degrades gracefully — the daemon still answers.
     if (this.embedder) {
       await mkdir(dirname(this.config.storage.dbFile), { recursive: true });
-      const opened = await SociusDatabase.open(this.config.storage.dbFile, this.embedder.dimensions);
+      const opened = await SociusDatabase.open(
+        this.config.storage.dbFile,
+        this.embedder.dimensions,
+      );
       if (opened.ok) {
         this.database = opened.value;
         this.memory = new SqliteMemoryStore(opened.value, this.embedder, {
@@ -186,7 +189,9 @@ export class Daemon {
     for (const s of this.config.schedules) {
       if (!s.enabled) continue;
       if (s.everyMinutes && s.everyMinutes > 0) {
-        this.scheduleTimers.push(setInterval(() => void this.runSchedule(s.name), s.everyMinutes * 60_000));
+        this.scheduleTimers.push(
+          setInterval(() => void this.runSchedule(s.name), s.everyMinutes * 60_000),
+        );
         this.log.info("schedule armed", { name: s.name, everyMinutes: s.everyMinutes });
       } else if (s.dailyAt) {
         this.armDaily(s.name, s.dailyAt);
@@ -231,7 +236,9 @@ export class Daemon {
       runner,
       mode: this.config.permissions.defaultMode,
       traceSink: this.traceSink,
-      ...(this.memory ? { memory: this.memory, memoryTokenBudget: this.config.memory.defaultTokenBudget } : {}),
+      ...(this.memory
+        ? { memory: this.memory, memoryTokenBudget: this.config.memory.defaultTokenBudget }
+        : {}),
     });
     this.seq += 1;
     let out = "";
@@ -247,7 +254,10 @@ export class Daemon {
 
   private notify(title: string, body: string): void {
     try {
-      Bun.spawn(["notify-send", "-a", "socius", title, body], { stdout: "ignore", stderr: "ignore" });
+      Bun.spawn(["notify-send", "-a", "socius", title, body], {
+        stdout: "ignore",
+        stderr: "ignore",
+      });
     } catch {
       this.log.debug("notify-send unavailable");
     }
@@ -261,7 +271,8 @@ export class Daemon {
       try {
         this.watchers.push(
           watch(configDir, (_e, file) => {
-            if (file && basename(paths.configFile) === file) this.debounce("config", 400, () => this.reloadConfig());
+            if (file && basename(paths.configFile) === file)
+              this.debounce("config", 400, () => this.reloadConfig());
           }),
         );
       } catch {
@@ -273,7 +284,8 @@ export class Daemon {
       try {
         this.watchers.push(
           watch(kb, { recursive: true }, (_e, file) => {
-            if (file && String(file).endsWith(".md")) this.debounce("kb", 1000, () => this.reindexKnowledge());
+            if (file && String(file).endsWith(".md"))
+              this.debounce("kb", 1000, () => this.reindexKnowledge());
           }),
         );
       } catch {
@@ -300,7 +312,9 @@ export class Daemon {
     try {
       next = loadConfig(resolvePaths());
     } catch (err) {
-      this.log.warn("config reload failed, keeping current", { err: err instanceof Error ? err.message : String(err) });
+      this.log.warn("config reload failed, keeping current", {
+        err: err instanceof Error ? err.message : String(err),
+      });
       return;
     }
     const restartNeeded =
@@ -324,7 +338,8 @@ export class Daemon {
   private async reindexKnowledge(): Promise<void> {
     if (!this.memory) return;
     const r = await indexKnowledge(this.config.storage.knowledgeDir, this.memory);
-    if (r.ok) this.log.info("knowledge auto-reindexed", { files: r.value.files, chunks: r.value.chunks });
+    if (r.ok)
+      this.log.info("knowledge auto-reindexed", { files: r.value.files, chunks: r.value.chunks });
   }
 
   private serve(socketPath: string): void {
@@ -404,20 +419,26 @@ export class Daemon {
           socket.write(response(id, await this.knowledgeIndex()));
           break;
         case "knowledge.search":
-          socket.write(response(id, await this.knowledgeSearch((msg.params as { text: string }).text)));
+          socket.write(
+            response(id, await this.knowledgeSearch((msg.params as { text: string }).text)),
+          );
           break;
         case "schedule.list":
-          socket.write(response(id, {
-            schedules: this.config.schedules.map((s) => ({
-              name: s.name,
-              enabled: s.enabled,
-              ...(s.everyMinutes ? { everyMinutes: s.everyMinutes } : {}),
-              ...(s.dailyAt ? { dailyAt: s.dailyAt } : {}),
-            })),
-          }));
+          socket.write(
+            response(id, {
+              schedules: this.config.schedules.map((s) => ({
+                name: s.name,
+                enabled: s.enabled,
+                ...(s.everyMinutes ? { everyMinutes: s.everyMinutes } : {}),
+                ...(s.dailyAt ? { dailyAt: s.dailyAt } : {}),
+              })),
+            }),
+          );
           break;
         case "schedule.run":
-          socket.write(response(id, { answer: await this.runSchedule((msg.params as { name: string }).name) }));
+          socket.write(
+            response(id, { answer: await this.runSchedule((msg.params as { name: string }).name) }),
+          );
           break;
         case "shutdown":
           socket.write(response(id, { ok: true }));
@@ -482,8 +503,10 @@ export class Daemon {
     };
     try {
       for await (const ev of planner.run(ctx)) {
-        if (ev.type === "token" && ev.token) socket.write(notify({ kind: "token", text: ev.token }));
-        else if (ev.type === "step" && ev.step) socket.write(notify({ kind: "step", label: ev.step.label }));
+        if (ev.type === "token" && ev.token)
+          socket.write(notify({ kind: "token", text: ev.token }));
+        else if (ev.type === "step" && ev.step)
+          socket.write(notify({ kind: "step", label: ev.step.label }));
       }
       socket.write(notify({ kind: "done" }));
       socket.write(response(id, { ok: true }));
@@ -547,14 +570,16 @@ export class Daemon {
 
   private async memForget(idOrPrefix: string): Promise<{ ok: boolean }> {
     const id = await this.resolveMemoryId(idOrPrefix);
-    const r = await this.memory!.forget(id);
+    if (!this.memory) throw new Error("memory is not available");
+    const r = await this.memory.forget(id);
     if (!r.ok) throw r.error;
     return { ok: true };
   }
 
   private async memShow(idOrPrefix: string): Promise<{ memory: unknown }> {
     const id = await this.resolveMemoryId(idOrPrefix);
-    const r = await this.memory!.get(id);
+    if (!this.memory) throw new Error("memory is not available");
+    const r = await this.memory.get(id);
     if (!r.ok) throw r.error;
     if (!r.value) throw new Error(`no memory ${idOrPrefix}`);
     const m = r.value;
@@ -574,16 +599,26 @@ export class Daemon {
 
   private async memEdit(idOrPrefix: string, content: string): Promise<{ id: string }> {
     const id = await this.resolveMemoryId(idOrPrefix);
-    const r = await this.memory!.update(id, { content });
+    if (!this.memory) throw new Error("memory is not available");
+    const r = await this.memory.update(id, { content });
     if (!r.ok) throw r.error;
     return { id: r.value.id };
   }
 
-  private async memSearch(text: string, k?: number): Promise<{ results: { content: string; kind: string; score: number }[] }> {
+  private async memSearch(
+    text: string,
+    k?: number,
+  ): Promise<{ results: { content: string; kind: string; score: number }[] }> {
     if (!this.memory) throw new Error("memory is not available");
     const r = await this.memory.retrieve({ text, ...(k ? { k } : {}) });
     if (!r.ok) throw r.error;
-    return { results: r.value.map((m) => ({ content: m.memory.content, kind: m.memory.kind, score: m.score })) };
+    return {
+      results: r.value.map((m) => ({
+        content: m.memory.content,
+        kind: m.memory.kind,
+        score: m.score,
+      })),
+    };
   }
 
   /** Resolve a full id or a unique id-prefix (as shown by `mem list`). */
@@ -593,8 +628,10 @@ export class Daemon {
     if (!r.ok) throw r.error;
     const matches = r.value.filter((m) => m.id === idOrPrefix || m.id.startsWith(idOrPrefix));
     if (matches.length === 0) throw new Error(`no memory matching '${idOrPrefix}'`);
-    if (matches.length > 1) throw new Error(`'${idOrPrefix}' is ambiguous (${matches.length} matches)`);
-    return matches[0]!.id;
+    const only = matches[0];
+    if (!only || matches.length > 1)
+      throw new Error(`'${idOrPrefix}' is ambiguous or missing (${matches.length} matches)`);
+    return only.id;
   }
 
   private async knowledgeIndex(): Promise<{ files: number; chunks: number }> {
@@ -604,7 +641,9 @@ export class Daemon {
     return r.value;
   }
 
-  private async knowledgeSearch(text: string): Promise<{ results: { content: string; ref?: string }[] }> {
+  private async knowledgeSearch(
+    text: string,
+  ): Promise<{ results: { content: string; ref?: string }[] }> {
     if (!this.memory) throw new Error("memory is not available");
     const r = await this.memory.retrieve({ text, kinds: ["knowledge"] });
     if (!r.ok) throw r.error;

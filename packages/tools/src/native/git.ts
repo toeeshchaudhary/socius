@@ -27,7 +27,9 @@ function cwdOf(args: unknown): string {
 
 const cwdSchema = {
   type: "object",
-  properties: { cwd: { type: "string", description: "Repository path (default: current directory)" } },
+  properties: {
+    cwd: { type: "string", description: "Repository path (default: current directory)" },
+  },
 };
 
 export const gitStatusTool: Tool = {
@@ -77,7 +79,11 @@ export const gitAddTool: Tool = {
     type: "object",
     properties: {
       cwd: { type: "string", description: "Repository path (default: current directory)" },
-      paths: { type: "array", items: { type: "string" }, description: "Paths to stage (default: all changes)" },
+      paths: {
+        type: "array",
+        items: { type: "string" },
+        description: "Paths to stage (default: all changes)",
+      },
     },
   },
   outputSchema: { type: "object", properties: { staged: { type: "string" } } },
@@ -113,7 +119,10 @@ export const gitCommitTool: Tool = {
   async invoke(args: unknown, _ctx: ToolContext): Promise<Result<ToolResult>> {
     const a = args as { message?: unknown; all?: unknown };
     if (typeof a.message !== "string" || a.message.trim().length === 0) {
-      return { ok: false, error: error("TOOL_INPUT_INVALID", "tools", "`message` (non-empty string) is required") };
+      return {
+        ok: false,
+        error: error("TOOL_INPUT_INVALID", "tools", "`message` (non-empty string) is required"),
+      };
     }
     const flags = a.all === true ? ["-a"] : [];
     const r = runGit(cwdOf(args), ["commit", ...flags, "-m", a.message]);

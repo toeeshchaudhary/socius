@@ -3,8 +3,8 @@
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadConfig, resolvePaths } from "../packages/config/src/index.ts";
 import { DaemonClient } from "../packages/cli/src/client.ts";
+import { loadConfig, resolvePaths } from "../packages/config/src/index.ts";
 import { createDaemon } from "../packages/daemon/src/index.ts";
 
 const dbFile = join(tmpdir(), `socius-cu-${process.pid}.db`);
@@ -18,7 +18,10 @@ const client = (await DaemonClient.connect(config.daemon.socketPath))!;
 
 process.stderr.write("[cu] --- answer ---\n");
 await client.infer(
-  { input: "Use the Composio search tool to find tools for sending email. What did you find?", maxTokens: 220 },
+  {
+    input: "Use the Composio search tool to find tools for sending email. What did you find?",
+    maxTokens: 220,
+  },
   (t) => process.stdout.write(t),
   async (p) => {
     process.stderr.write(`\n[cu] CONFIRM -> approving: ${p.slice(0, 90)}\n`);

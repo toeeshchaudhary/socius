@@ -45,9 +45,9 @@ enabled = true
 headers = { "x-api-key" = "literal-key" }
 `);
     expect(config.mcp).toHaveLength(1);
-    expect(config.mcp[0]!.name).toBe("composio");
-    expect(config.mcp[0]!.url).toBe("https://example.com/mcp");
-    expect(config.mcp[0]!.headers?.["x-api-key"]).toBe("literal-key");
+    expect(config.mcp[0]?.name).toBe("composio");
+    expect(config.mcp[0]?.url).toBe("https://example.com/mcp");
+    expect(config.mcp[0]?.headers?.["x-api-key"]).toBe("literal-key");
     await rm(dir, { recursive: true, force: true });
   });
 
@@ -60,8 +60,8 @@ url = "https://x/mcp"
 enabled = true
 headers = { "x-api-key" = "\${SOCIUS_TEST_SECRET}" }
 `);
-    expect(config.mcp[0]!.headers?.["x-api-key"]).toBe("s3cr3t");
-    delete process.env.SOCIUS_TEST_SECRET;
+    expect(config.mcp[0]?.headers?.["x-api-key"]).toBe("s3cr3t");
+    process.env.SOCIUS_TEST_SECRET = undefined;
     await rm(dir, { recursive: true, force: true });
   });
 });

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { defaultConfig } from "@socius/config";
 import type {
   BackendHealth,
   CompletionChunk,
@@ -11,7 +12,6 @@ import type {
   SociusConfig,
 } from "@socius/core";
 import { ok } from "@socius/core";
-import { defaultConfig } from "@socius/config";
 import { HashingEmbedder } from "@socius/inference";
 import { ConsoleLogger } from "@socius/logging";
 import { Daemon } from "./daemon.ts";
@@ -50,7 +50,12 @@ interface RpcOpts {
   onConfirm?: (prompt: string) => boolean;
 }
 
-async function rpc(socketPath: string, method: string, params: unknown, opts: RpcOpts = {}): Promise<unknown> {
+async function rpc(
+  socketPath: string,
+  method: string,
+  params: unknown,
+  opts: RpcOpts = {},
+): Promise<unknown> {
   let resolveDone!: (v: unknown) => void;
   let rejectDone!: (e: Error) => void;
   const done = new Promise<unknown>((res, rej) => {
@@ -126,11 +131,16 @@ describe("Daemon IPC (hermetic, fake model)", () => {
 
   test("infer streams tokens from the backend to the client", async () => {
     let out = "";
-    await rpc(config.daemon.socketPath, "infer", { input: "who are you?" }, {
-      onNotify: (n) => {
-        if (n.kind === "token" && n.text) out += n.text;
+    await rpc(
+      config.daemon.socketPath,
+      "infer",
+      { input: "who are you?" },
+      {
+        onNotify: (n) => {
+          if (n.kind === "token" && n.text) out += n.text;
+        },
       },
-    });
+    );
     expect(out).toBe("Socius online");
   });
 
@@ -200,7 +210,12 @@ describe("Daemon interactive confirmation (destructive tool)", () => {
 
   test("writes the file only when the user approves", async () => {
     await boot();
-    await rpc(config.daemon.socketPath, "infer", { input: "save hi to a file" }, { onConfirm: () => true });
+    await rpc(
+      config.daemon.socketPath,
+      "infer",
+      { input: "save hi to a file" },
+      { onConfirm: () => true },
+    );
     expect(await Bun.file(targetFile).exists()).toBe(true);
     await daemon.stop();
     await rm(dir, { recursive: true, force: true });
@@ -208,7 +223,12 @@ describe("Daemon interactive confirmation (destructive tool)", () => {
 
   test("does NOT write the file when the user declines", async () => {
     await boot();
-    await rpc(config.daemon.socketPath, "infer", { input: "save hi to a file" }, { onConfirm: () => false });
+    await rpc(
+      config.daemon.socketPath,
+      "infer",
+      { input: "save hi to a file" },
+      { onConfirm: () => false },
+    );
     expect(await Bun.file(targetFile).exists()).toBe(false);
     await daemon.stop();
     await rm(dir, { recursive: true, force: true });
@@ -241,7 +261,9 @@ describe("Daemon memory ops (show/edit/forget by id-prefix)", () => {
   });
 
   test("remember -> show(prefix) -> edit(prefix) -> forget(prefix)", async () => {
-    const r = (await rpc(sock, "remember", { content: "the sky is blue", kind: "long_term" })) as { id: string };
+    const r = (await rpc(sock, "remember", { content: "the sky is blue", kind: "long_term" })) as {
+      id: string;
+    };
     const prefix = r.id.slice(0, 8);
 
     const shown = (await rpc(sock, "mem.show", { id: prefix })) as { memory: { content: string } };
@@ -287,9 +309,11 @@ describe("Daemon schedules (M6)", () => {
   });
 
   test("schedule.list shows configured schedules", async () => {
-    const r = (await rpc(sock, "schedule.list", {})) as { schedules: { name: string; enabled: boolean }[] };
+    const r = (await rpc(sock, "schedule.list", {})) as {
+      schedules: { name: string; enabled: boolean }[];
+    };
     expect(r.schedules).toHaveLength(1);
-    expect(r.schedules[0]!.name).toBe("brief");
+    expect(r.schedules[0]?.name).toBe("brief");
   });
 
   test("schedule.run executes the prompt and returns the answer", async () => {

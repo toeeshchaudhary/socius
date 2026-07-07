@@ -7,8 +7,8 @@
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { defaultConfig, resolvePaths } from "../packages/config/src/index.ts";
 import { DaemonClient } from "../packages/cli/src/client.ts";
+import { defaultConfig, resolvePaths } from "../packages/config/src/index.ts";
 import { createDaemon } from "../packages/daemon/src/index.ts";
 
 const dbFile = join(tmpdir(), `socius-mem-e2e-${process.pid}.db`);
@@ -35,7 +35,10 @@ process.stderr.write("[mem] asking a question that requires the remembered factâ
 process.stderr.write("[mem] --- answer ---\n");
 let n = 0;
 await client.infer(
-  { input: "What is the internal codename for the Socius release? Answer in one short sentence.", maxTokens: 48 },
+  {
+    input: "What is the internal codename for the Socius release? Answer in one short sentence.",
+    maxTokens: 48,
+  },
   (t) => {
     n++;
     process.stdout.write(t);

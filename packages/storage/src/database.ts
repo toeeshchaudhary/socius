@@ -5,8 +5,8 @@
  * must be rebuilt (they are derived data — see 11-storage.md).
  */
 import { Database as BunDatabase } from "bun:sqlite";
-import * as sqliteVec from "sqlite-vec";
 import { type Result, error, ok } from "@socius/core";
+import * as sqliteVec from "sqlite-vec";
 import { MIGRATIONS } from "./migrations.ts";
 
 export class SociusDatabase {
@@ -28,7 +28,10 @@ export class SociusDatabase {
       instance.ensureVectorTable(embeddingDim);
       return ok(instance);
     } catch (cause) {
-      return { ok: false, error: error("STORAGE_FAILED", "storage", "failed to open database", { cause }) };
+      return {
+        ok: false,
+        error: error("STORAGE_FAILED", "storage", "failed to open database", { cause }),
+      };
     }
   }
 
@@ -37,9 +40,14 @@ export class SociusDatabase {
       "CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, name TEXT NOT NULL, applied_at INTEGER NOT NULL);",
     );
     const applied = new Set(
-      this.db.query("SELECT version FROM schema_migrations").all().map((r) => (r as { version: number }).version),
+      this.db
+        .query("SELECT version FROM schema_migrations")
+        .all()
+        .map((r) => (r as { version: number }).version),
     );
-    const pending = MIGRATIONS.filter((m) => !applied.has(m.version)).sort((a, b) => a.version - b.version);
+    const pending = MIGRATIONS.filter((m) => !applied.has(m.version)).sort(
+      (a, b) => a.version - b.version,
+    );
     if (pending.length === 0) return;
 
     const tx = this.db.transaction(() => {
@@ -53,7 +61,7 @@ export class SociusDatabase {
     try {
       tx();
     } catch (cause) {
-      throw error("MIGRATION_FAILED", "storage", `migration failed (rolled back)`, { cause });
+      throw error("MIGRATION_FAILED", "storage", "migration failed (rolled back)", { cause });
     }
   }
 
@@ -73,9 +81,13 @@ export class SociusDatabase {
       // dimension changed — clear derived embeddings; memory rows are kept.
       this.db.exec("DROP TABLE IF EXISTS vec_memories;");
     }
-    this.db.exec(`CREATE VIRTUAL TABLE IF NOT EXISTS vec_memories USING vec0(embedding float[${dim}]);`);
+    this.db.exec(
+      `CREATE VIRTUAL TABLE IF NOT EXISTS vec_memories USING vec0(embedding float[${dim}]);`,
+    );
     this.db
-      .prepare("INSERT INTO meta (key, value) VALUES ('embedding_dim', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+      .prepare(
+        "INSERT INTO meta (key, value) VALUES ('embedding_dim', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      )
       .run(String(dim));
   }
 
