@@ -19,6 +19,8 @@ export interface SociusPaths {
   readonly stateDir: string;
   readonly runtimeDir: string;
   readonly configFile: string;
+  /** CLI-managed overrides (`socius config set`), layered over configFile. */
+  readonly cliConfigFile: string;
   readonly dbFile: string;
   readonly knowledgeDir: string;
   readonly promptsDir: string;
@@ -42,6 +44,7 @@ export function resolvePaths(): SociusPaths {
     stateDir,
     runtimeDir,
     configFile: join(configDir, "config.toml"),
+    cliConfigFile: join(configDir, "config.cli.toml"),
     dbFile: join(dataDir, "socius.db"),
     knowledgeDir: join(dataDir, "knowledge"),
     promptsDir: join(configDir, "prompts"),

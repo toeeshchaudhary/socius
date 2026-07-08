@@ -13,7 +13,24 @@ export interface ModelConfig {
   readonly gpuLayers: number;
 }
 
+/**
+ * A remote OpenAI-compatible endpoint (gateway or direct provider). `gateway`
+ * names a built-in preset (vercel, openrouter, groq, google, cerebras) that
+ * supplies the baseUrl; "custom" uses `baseUrl` verbatim. The apiKey supports
+ * `${VAR}` expansion so secrets can live in the environment.
+ */
+export interface RemoteInferenceConfig {
+  readonly gateway: string;
+  readonly model: string;
+  readonly apiKey: string;
+  readonly baseUrl?: string;
+  readonly contextWindow?: number;
+}
+
 export interface InferenceConfig {
+  /** Which backend serves chat: a local llama-server or a remote gateway. */
+  readonly backend: "local" | "remote";
+  readonly remote?: RemoteInferenceConfig;
   readonly llamaServerBin: string;
   readonly host: string;
   readonly port: number;
@@ -111,6 +128,12 @@ export interface ScheduleConfig {
 export interface SociusConfig {
   readonly model: ModelConfig;
   readonly inference: InferenceConfig;
+  /**
+   * API keys by gateway name (`socius key set <gateway> <key>`). Used when
+   * `inference.remote.apiKey` is not set; the gateway's conventional env var is
+   * the final fallback.
+   */
+  readonly keys: Readonly<Record<string, string>>;
   readonly daemon: DaemonConfig;
   readonly memory: MemoryConfig;
   readonly storage: StorageConfig;

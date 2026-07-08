@@ -14,9 +14,42 @@ contextWindow = 4096
 gpuLayers = 0
 
 [inference]
+# Which backend serves chat: "local" runs llama-server with the [model] above;
+# "remote" talks to an OpenAI-compatible gateway ([inference.remote] below).
+backend = "local"
 # Reasoning models otherwise spend the whole budget "thinking" and return empty
 # content. Leave false for fast, direct answers.
 thinking = false
+
+# --- Remote inference ----------------------------------------------------------
+# Any OpenAI-compatible gateway works. Built-in gateway presets (just name one):
+#   vercel     — Vercel AI Gateway (https://vercel.com/ai-gateway); one key, many models
+#   openrouter — models ending in ":free" cost nothing (rate-limited)
+#   groq       — generous free tier, very fast open models
+#   google     — Google AI Studio, free tier for Gemini models
+#   cerebras   — free tier, fast open models
+# Or gateway = "custom" with an explicit baseUrl. Keys resolve in order:
+# apiKey below (supports ${VAR}) → `socius key set <gateway> <key>` → the
+# gateway's env var (OPENROUTER_API_KEY, GROQ_API_KEY, …), so apiKey is optional.
+# Switch backends by flipping `backend` above and restarting (socius restart),
+# or just run `socius model use <gateway> <model>`.
+#
+# [inference.remote]
+# gateway = "openrouter"
+# model = "meta-llama/llama-3.3-70b-instruct:free"
+# apiKey = "${OPENROUTER_API_KEY}"
+# contextWindow = 32768
+#
+# [inference.remote]                      # Vercel AI Gateway example
+# gateway = "vercel"
+# model = "anthropic/claude-haiku-4.5"
+# apiKey = "${AI_GATEWAY_API_KEY}"
+#
+# [inference.remote]                      # any other OpenAI-compatible endpoint
+# gateway = "custom"
+# baseUrl = "https://my-gateway.example.com/v1"
+# model = "some-model"
+# apiKey = "${MY_KEY}"
 
 [permissions]
 defaultMode = "live"          # dry_run | sandbox | live

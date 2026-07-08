@@ -8,6 +8,7 @@ import { type SociusPaths, resolvePaths } from "./paths.ts";
 
 export { resolvePaths, type SociusPaths } from "./paths.ts";
 export { loadConfig } from "./load.ts";
+export { readOverrides, setOverride, unsetOverride, flatten } from "./overrides.ts";
 
 /** Built-in defaults, tuned for the 4 GB-VRAM reference machine. */
 export function defaultConfig(paths: SociusPaths = resolvePaths()): SociusConfig {
@@ -24,6 +25,7 @@ export function defaultConfig(paths: SociusPaths = resolvePaths()): SociusConfig
       gpuLayers: 0,
     },
     inference: {
+      backend: "local",
       llamaServerBin: `${process.env.HOME}/llama.cpp/build/bin/llama-server`,
       host: "127.0.0.1",
       port: 8080,
@@ -70,6 +72,7 @@ export function defaultConfig(paths: SociusPaths = resolvePaths()): SociusConfig
       dir: paths.stateDir,
       traces: true,
     },
+    keys: {},
     mcp: [],
     schedules: [],
     promptsDir: paths.promptsDir,

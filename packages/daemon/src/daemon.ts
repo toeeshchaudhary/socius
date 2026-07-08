@@ -180,7 +180,11 @@ export class Daemon {
     this.installSignalHandlers();
     this.setupWatchers();
     this.setupSchedules();
-    this.log.info("sociusd ready", { socket: socketPath, model: this.config.model.id });
+    const model =
+      this.config.inference.backend === "remote"
+        ? (this.config.inference.remote?.model ?? "remote")
+        : this.config.model.id;
+    this.log.info("sociusd ready", { socket: socketPath, model });
   }
 
   // --- Scheduled background tasks (M6) ---

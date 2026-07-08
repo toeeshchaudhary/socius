@@ -11,17 +11,21 @@ import { defaultConfig } from "./index.ts";
 import { type SociusPaths, resolvePaths } from "./paths.ts";
 
 export function loadConfig(paths: SociusPaths = resolvePaths()): SociusConfig {
-  const defaults = defaultConfig(paths);
-  if (!existsSync(paths.configFile)) return defaults;
-  let parsed: unknown;
-  try {
-    parsed = parseToml(readFileSync(paths.configFile, "utf8"));
-  } catch (cause) {
-    throw new Error(
-      `invalid config at ${paths.configFile}: ${cause instanceof Error ? cause.message : cause}`,
-    );
+  // defaults ‹ config.toml (hand-written) ‹ config.cli.toml (socius config set)
+  let merged: unknown = defaultConfig(paths);
+  for (const file of [paths.configFile, paths.cliConfigFile]) {
+    if (!existsSync(file)) continue;
+    let parsed: unknown;
+    try {
+      parsed = parseToml(readFileSync(file, "utf8"));
+    } catch (cause) {
+      throw new Error(
+        `invalid config at ${file}: ${cause instanceof Error ? cause.message : cause}`,
+      );
+    }
+    merged = deepMerge(merged, expandEnv(parsed));
   }
-  return deepMerge(defaults, expandEnv(parsed)) as SociusConfig;
+  return merged as SociusConfig;
 }
 
 function isPlainObject(v: unknown): v is Record<string, unknown> {
