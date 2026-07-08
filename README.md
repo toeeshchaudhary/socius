@@ -123,4 +123,4 @@ VRAM, CPU-only for the reference model). Pre-1.0 — interfaces may still change
 
 ## License
 
-[MIT](./LICENSE) © toeeshchaudhary
+Built by [toeesh](https://github.com/toeeshchaudhary) · MIT licensed
