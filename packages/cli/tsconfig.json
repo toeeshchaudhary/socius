@@ -2,5 +2,10 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": { "rootDir": "src", "outDir": "dist" },
   "include": ["src/**/*"],
-  "references": [{ "path": "../core" }, { "path": "../config" }, { "path": "../logging" }]
+  "references": [
+    { "path": "../core" },
+    { "path": "../config" },
+    { "path": "../logging" },
+    { "path": "../inference" }
+  ]
 }

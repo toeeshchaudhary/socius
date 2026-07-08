@@ -7,6 +7,7 @@
   "dependencies": {
     "@socius/core": "workspace:*",
     "@socius/config": "workspace:*",
+    "@socius/inference": "workspace:*",
     "@socius/logging": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "zod": "^3.24.0"

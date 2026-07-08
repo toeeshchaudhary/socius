@@ -6,8 +6,9 @@
  */
 import { createReadStream, existsSync } from "node:fs";
 import { createInterface } from "node:readline";
-import { loadConfig, resolvePaths } from "@socius/config";
+import { flatten, loadConfig, resolvePaths, setOverride, unsetOverride } from "@socius/config";
 import { IPC_PROTOCOL_VERSION } from "@socius/core";
+import { GATEWAYS, checkApiKey } from "@socius/inference";
 import { DaemonClient, ensureDaemon } from "./client.ts";
 import { readStdin } from "./index.ts";
 
@@ -250,6 +251,234 @@ async function schedule(args: readonly string[]): Promise<number> {
   }
 }
 
+/** Redact values whose key smells like a secret in `config list` output. */
+function redact(key: string, value: unknown): string {
+  const secret = /key|token|secret|password/i.test(key);
+  const s = typeof value === "string" ? value : JSON.stringify(value);
+  return secret && s ? "••••••" : s;
+}
+
+/** Parse a CLI value: JSON if it parses (numbers, bools, arrays), else string. */
+function parseValue(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return raw;
+  }
+}
+
+async function configCmd(args: readonly string[]): Promise<number> {
+  const paths = resolvePaths();
+  const sub = args[0] ?? "list";
+
+  if (sub === "list") {
+    const config = loadConfig(paths);
+    for (const [k, v] of flatten(config)) {
+      process.stdout.write(`${k} = ${redact(k, v)}\n`);
+    }
+    return 0;
+  }
+  if (sub === "get") {
+    if (!args[1]) {
+      process.stderr.write("usage: socius config get <key>\n");
+      return 2;
+    }
+    const entries = flatten(loadConfig(paths)).filter(
+      ([k]) => k === args[1] || k.startsWith(`${args[1]}.`),
+    );
+    if (entries.length === 0) {
+      process.stderr.write(`socius: no such key '${args[1]}'\n`);
+      return 1;
+    }
+    for (const [k, v] of entries) {
+      process.stdout.write(entries.length === 1 ? `${v}\n` : `${k} = ${redact(k, v)}\n`);
+    }
+    return 0;
+  }
+  if (sub === "set") {
+    const [, key, ...rest] = args;
+    if (!key || rest.length === 0) {
+      process.stderr.write("usage: socius config set <key> <value>\n");
+      return 2;
+    }
+    setOverride(key, parseValue(rest.join(" ")), paths);
+    loadConfig(paths); // fail fast if the result no longer parses/merges
+    process.stdout.write(`${key} set. Run 'socius restart' to apply.\n`);
+    return 0;
+  }
+  if (sub === "unset") {
+    if (!args[1]) {
+      process.stderr.write("usage: socius config unset <key>\n");
+      return 2;
+    }
+    const removed = unsetOverride(args[1], paths);
+    process.stdout.write(
+      removed
+        ? `${args[1]} unset (falls back to config.toml/default). Run 'socius restart' to apply.\n`
+        : `${args[1]} was not set via CLI (config.toml values must be edited there).\n`,
+    );
+    return removed ? 0 : 1;
+  }
+  process.stderr.write(
+    "usage: socius config [list | get <key> | set <key> <value> | unset <key>]\n",
+  );
+  return 2;
+}
+
+async function key(args: readonly string[]): Promise<number> {
+  const paths = resolvePaths();
+  const sub = args[0] ?? "list";
+
+  if (sub === "set") {
+    const force = args.includes("--force");
+    const [, gateway, value] = args.filter((a) => a !== "--force");
+    if (!gateway || !value) {
+      process.stderr.write("usage: socius key set <gateway> <key> [--force]\n");
+      process.stderr.write(`gateways: ${Object.keys(GATEWAYS).join(", ")}, or any custom name\n`);
+      return 2;
+    }
+    if (!GATEWAYS[gateway] && gateway !== "custom") {
+      process.stderr.write(
+        `socius: note — '${gateway}' is not a built-in gateway (${Object.keys(GATEWAYS).join(", ")}); storing anyway.\n`,
+      );
+    }
+    // Live-check the key against the gateway before saving, so a typo'd key
+    // fails here instead of as a 401 on the first query.
+    const preset = GATEWAYS[gateway];
+    const baseUrl = preset?.baseUrl ?? loadConfig(paths).inference.remote?.baseUrl;
+    if (baseUrl) {
+      process.stderr.write(`socius: checking key against ${baseUrl}…\n`);
+      const check = await checkApiKey(baseUrl, value, preset?.keyCheckPath);
+      if (check.status === "invalid" && !force) {
+        process.stderr.write(
+          `socius: gateway rejected this key (${check.detail}) — not saved. Use --force to save anyway.\n`,
+        );
+        return 1;
+      }
+      if (check.status === "invalid") {
+        process.stderr.write(
+          `socius: gateway rejected this key (${check.detail}) — saving because of --force.\n`,
+        );
+      } else if (check.status === "unreachable") {
+        process.stderr.write(
+          `socius: could not verify key (${check.detail}) — saving unverified.\n`,
+        );
+      } else {
+        process.stdout.write("key is valid.\n");
+      }
+    } else {
+      process.stderr.write(
+        "socius: no baseUrl known for this gateway — saving unverified (set inference.remote.baseUrl for custom gateways).\n",
+      );
+    }
+    setOverride(`keys.${gateway}`, value, paths);
+    process.stdout.write(`key for '${gateway}' saved (${paths.cliConfigFile}, mode 600).\n`);
+    const config = loadConfig(paths);
+    if (config.inference.backend === "remote" && config.inference.remote?.gateway === gateway) {
+      return restart();
+    }
+    return 0;
+  }
+  if (sub === "remove") {
+    if (!args[1]) {
+      process.stderr.write("usage: socius key remove <gateway>\n");
+      return 2;
+    }
+    const removed = unsetOverride(`keys.${args[1]}`, paths);
+    process.stdout.write(removed ? "removed.\n" : `no stored key for '${args[1]}'.\n`);
+    return removed ? 0 : 1;
+  }
+  if (sub === "list") {
+    const config = loadConfig(paths);
+    const stored = Object.keys(config.keys);
+    for (const [name, g] of Object.entries(GATEWAYS)) {
+      const state = stored.includes(name)
+        ? "stored"
+        : process.env[g.keyEnv]
+          ? `from env ${g.keyEnv}`
+          : "not set";
+      process.stdout.write(`  ${name.padEnd(11)} ${state}\n`);
+    }
+    for (const name of stored.filter((n) => !GATEWAYS[n])) {
+      process.stdout.write(`  ${name.padEnd(11)} stored\n`);
+    }
+    return 0;
+  }
+  process.stderr.write("usage: socius key [list | set <gateway> <key> | remove <gateway>]\n");
+  return 2;
+}
+
+async function model(args: readonly string[]): Promise<number> {
+  const paths = resolvePaths();
+  const sub = args[0];
+
+  if (!sub || sub === "show") {
+    const config = loadConfig(paths);
+    if (config.inference.backend === "remote" && config.inference.remote) {
+      const r = config.inference.remote;
+      process.stdout.write(`remote  ${r.gateway}  ${r.model}\n`);
+    } else {
+      process.stdout.write(`local   ${config.model.id}\n`);
+    }
+    return 0;
+  }
+  if (sub === "list") {
+    process.stdout.write("gateways (socius model use <gateway> <model>):\n");
+    for (const [name, g] of Object.entries(GATEWAYS)) {
+      process.stdout.write(`  ${name.padEnd(11)} ${g.note}\n      key: \${${g.keyEnv}}\n`);
+    }
+    process.stdout.write(
+      "  custom      any OpenAI-compatible baseUrl (set inference.remote.baseUrl)\n",
+    );
+    process.stdout.write("  local       switch back with 'socius model local'\n");
+    return 0;
+  }
+  if (sub === "local") {
+    setOverride("inference.backend", "local", paths);
+    return restart();
+  }
+  if (sub === "use") {
+    const [, gateway, modelId, apiKey] = args;
+    if (!gateway || !modelId) {
+      process.stderr.write("usage: socius model use <gateway> <model> [apiKey]\n");
+      return 2;
+    }
+    const preset = GATEWAYS[gateway];
+    if (!preset && gateway !== "custom") {
+      process.stderr.write(
+        `socius: unknown gateway '${gateway}' (known: ${Object.keys(GATEWAYS).join(", ")}, custom)\n`,
+      );
+      return 1;
+    }
+    setOverride("inference.backend", "remote", paths);
+    setOverride("inference.remote.gateway", gateway, paths);
+    setOverride("inference.remote.model", modelId, paths);
+    // An explicit key argument is saved to the per-gateway key store so it is
+    // reused next time. Otherwise the daemon resolves: inference.remote.apiKey
+    // (config.toml) → stored key (socius key set) → the gateway's env var.
+    if (apiKey) setOverride(`keys.${gateway}`, apiKey, paths);
+    const config = loadConfig(paths);
+    const resolvable =
+      config.inference.remote?.apiKey ||
+      config.keys[gateway] ||
+      (preset && process.env[preset.keyEnv]);
+    if (!resolvable) {
+      const envHint = preset ? ` or export ${preset.keyEnv}` : "";
+      process.stderr.write(
+        `socius: no API key for '${gateway}' yet — run 'socius key set ${gateway} <key>'${envHint}.\n`,
+      );
+    }
+    process.stdout.write(
+      `now using ${config.inference.remote?.gateway}/${config.inference.remote?.model}\n`,
+    );
+    return restart();
+  }
+  process.stderr.write(
+    "usage: socius model [show | list | use <gateway> <model> [apiKey] | local]\n",
+  );
+  return 2;
+}
+
 async function restart(): Promise<number> {
   const config = loadConfig(resolvePaths());
   const client = await DaemonClient.connect(config.daemon.socketPath);
@@ -300,6 +529,9 @@ async function main(argv: readonly string[]): Promise<number> {
   }
   if (command === "doctor") return doctor();
   if (command === "restart") return restart();
+  if (command === "config") return configCmd(args.slice(1));
+  if (command === "model") return model(args.slice(1));
+  if (command === "key") return key(args.slice(1));
   if (command === "remember") return remember(args.slice(1).join(" ").trim());
   if (command === "mem") return mem(args.slice(1));
   if (command === "knowledge") return knowledge(args.slice(1));
@@ -323,6 +555,11 @@ async function main(argv: readonly string[]): Promise<number> {
     process.stderr.write(
       "  serve                      run Socius as an MCP server (for other clients)\n",
     );
+    process.stderr.write(
+      "  config [get|set|unset|list]  configure from the CLI (no TOML editing)\n",
+    );
+    process.stderr.write("  model [use|local|list]     switch between local and gateway models\n");
+    process.stderr.write("  key [set|remove|list]      store gateway API keys\n");
     process.stderr.write("  doctor | restart           status / restart the daemon\n");
     return 2;
   }

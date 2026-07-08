@@ -174,9 +174,58 @@ All settings live in `~/.config/socius/config.toml`, deep-merged over built-in d
 `${VAR}` environment expansion for secrets. Copy [`../config.example.toml`](../config.example.toml).
 Safe sections (permission policy, budgets) hot-reload; model/port/MCP changes need `socius restart`.
 
-Key sections: `[model]` (path, `gpuLayers`, `contextWindow`), `[inference]` (`thinking`),
-`[permissions]` (+ `[permissions.policy]`, `permissions.tools`, `permissions.paths`), `[[mcp]]`,
-`[[schedules]]`. Full reference: [`10-config.md`](./10-config.md).
+Key sections: `[model]` (path, `gpuLayers`, `contextWindow`), `[inference]` (`backend`,
+`thinking`, `[inference.remote]`), `[permissions]` (+ `[permissions.policy]`, `permissions.tools`,
+`permissions.paths`), `[[mcp]]`, `[[schedules]]`. Full reference: [`10-config.md`](./10-config.md).
+
+### Configuring from the CLI
+
+Every setting can also be managed without touching TOML:
+
+```sh
+socius config list                          # effective config (secrets redacted)
+socius config get memory.defaultTokenBudget
+socius config set memory.defaultTokenBudget 2048
+socius config unset memory.defaultTokenBudget   # fall back to config.toml/default
+```
+
+CLI-set values are stored in `~/.config/socius/config.cli.toml`, layered **over** `config.toml` —
+your hand-written file (and its comments) is never rewritten. Values parse as JSON where possible
+(`true`, `2048`, `["a","b"]`), otherwise as strings; `${VAR}` expansion applies at load time.
+
+### Local vs remote models
+
+Chat can run on the local llama-server or any OpenAI-compatible gateway (Vercel AI Gateway,
+OpenRouter, Groq, Google AI Studio, Cerebras, or a custom baseUrl). Memory, tools, permissions,
+and MCP work identically either way.
+
+```sh
+socius model                                # show the active backend/model
+socius model list                           # gateway presets + free-tier notes
+socius model use openrouter meta-llama/llama-3.3-70b-instruct:free
+socius model use vercel anthropic/claude-haiku-4.5
+socius model local                          # back to the local GGUF
+```
+
+Switching restarts the daemon automatically.
+
+### Gateway API keys
+
+```sh
+socius key set openrouter sk-or-v1-...      # live-checks the key, then stores it (chmod 600)
+socius key list                             # which gateways have keys (stored / from env / not set)
+socius key remove openrouter
+```
+
+`key set` verifies the key against the gateway before saving: a rejected key (401/403) is not
+stored (`--force` overrides); if the gateway can't be reached the key is saved unverified with a
+warning.
+
+The daemon resolves a gateway's key in order: `inference.remote.apiKey` (config.toml, supports
+`${VAR}`) → the stored key (`socius key set`) → the gateway's conventional env var (e.g.
+`OPENROUTER_API_KEY`). So either store the key once with `socius key set`, or just export the env
+var — both work with no further config. `socius model use <gateway> <model> <key>` also saves the
+key to the store as a shortcut.
 
 ### Performance note (reference model)
 
