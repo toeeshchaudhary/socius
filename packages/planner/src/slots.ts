@@ -89,23 +89,68 @@ export async function* streamAnswer(
   });
 }
 
-/** Extract and parse the first JSON object/array in a string. Tolerant of prose around it. */
+/**
+ * Extract and parse the first JSON object/array in a string. Tolerant of prose
+ * around it, trailing garbage after it, and spuriously escaped quotes (some
+ * gateway providers' constrained decoders emit `"tool\":\"x\"` mid-object).
+ */
 export function parseJson<T>(raw: string): T | null {
   const trimmed = raw.trim();
+  const first = attemptParse<T>(trimmed);
+  if (first !== null && !hasMangledKeys(first)) return first;
+  // Broken constrained decoders can produce output that parses but where the
+  // escaping swallowed real properties into one giant key (observed from an
+  // OpenRouter provider: `{"action":"tool","tool\":\"x\",...}":"tool"}`).
+  // Stripping the bogus escapes recovers the intended object. Correctly-escaped
+  // quotes inside values break under this, so it is only preferred when the
+  // straight parse failed or looks mangled.
+  const second = attemptParse<T>(trimmed.replace(/\\"/g, '"'));
+  if (second !== null && !hasMangledKeys(second)) return second;
+  return first ?? second;
+}
+
+function attemptParse<T>(text: string): T | null {
   try {
-    return JSON.parse(trimmed) as T;
+    return JSON.parse(text) as T;
   } catch {
-    // fall through to brace extraction
+    return parseBalanced<T>(text);
   }
-  const start = trimmed.search(/[[{]/);
+}
+
+/** No sane slot output has a quote character inside a property name. */
+function hasMangledKeys(value: unknown): boolean {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  return Object.keys(value).some((k) => k.includes('"'));
+}
+
+/** Parse the first brace/bracket-balanced JSON value, ignoring anything after it. */
+function parseBalanced<T>(text: string): T | null {
+  const start = text.search(/[[{]/);
   if (start === -1) return null;
-  const open = trimmed[start];
-  const close = open === "{" ? "}" : "]";
-  const end = trimmed.lastIndexOf(close);
-  if (end <= start) return null;
-  try {
-    return JSON.parse(trimmed.slice(start, end + 1)) as T;
-  } catch {
-    return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (escaped) {
+      escaped = false;
+    } else if (ch === "\\") {
+      escaped = true;
+    } else if (ch === '"') {
+      inString = !inString;
+    } else if (!inString) {
+      if (ch === "{" || ch === "[") depth++;
+      else if (ch === "}" || ch === "]") {
+        depth--;
+        if (depth === 0) {
+          try {
+            return JSON.parse(text.slice(start, i + 1)) as T;
+          } catch {
+            return null;
+          }
+        }
+      }
+    }
   }
+  return null;
 }

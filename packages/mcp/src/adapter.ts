@@ -46,9 +46,14 @@ export function mcpToolToNative(serverName: string, client: Client, mcp: McpTool
             error: error("TOOL_FAILED", "mcp", text || `${mcp.name} reported an error`),
           };
         }
+        // The summary feeds the decide/plan slots on later loop iterations, so it
+        // must carry the result itself — a bare tool name starves the loop and the
+        // model just re-calls the same tool instead of acting on what it returned.
+        const summary =
+          text.trim().slice(0, 800) || `${serverName}/${mcp.name}: ok (no text output)`;
         return ok({
           data: { content: res.content ?? [], text },
-          summary: `${serverName}/${mcp.name}`,
+          summary,
         });
       } catch (cause) {
         return {

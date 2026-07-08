@@ -60,7 +60,9 @@ export class GraphPlanner implements Planner {
   private readonly mode: ExecutionMode;
 
   constructor(private readonly deps: GraphPlannerDeps) {
-    this.maxToolCalls = deps.maxToolCalls ?? 3;
+    // MCP meta-tool flows (e.g. Composio search → execute) need at least two
+    // productive calls plus headroom for one correction.
+    this.maxToolCalls = deps.maxToolCalls ?? 5;
     this.mode = deps.mode ?? "live";
   }
 
@@ -78,8 +80,22 @@ export class GraphPlanner implements Planner {
       if (decision.action !== "tool" || !decision.tool) break;
       const tool = this.deps.tools.get(decision.tool);
       if (!tool) {
-        yield step("plan", `model picked unknown tool '${decision.tool}', answering directly`);
-        break;
+        // Reflect rather than bail: models often pick a tool *named in a prior
+        // result* (e.g. a slug from an MCP search) instead of a registered one.
+        // Telling them so lets the next decide() route through the right tool
+        // (e.g. an execute meta-tool). Bounded by maxToolCalls like any retry.
+        yield step("reflect", `'${decision.tool}' is not a registered tool — reconsidering`);
+        outcomes.push({
+          tool: decision.tool,
+          ok: false,
+          summary:
+            `ERROR: '${decision.tool}' is not a registered tool. Registered tools: ` +
+            `${tools.map((t) => t.name).join(", ")}. Actions named inside a tool's ` +
+            `results (e.g. *_FETCH_*, GMAIL_*) are not directly callable — invoke ` +
+            `them via that server's execute/meta tool instead.`,
+          data: null,
+        });
+        continue;
       }
       // Plan slot: fill this tool's arguments, grammar-constrained to ITS schema.
       // Only the chosen tool's schema is used, so the prompt stays small and the

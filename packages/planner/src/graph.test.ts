@@ -113,13 +113,13 @@ describe("GraphPlanner", () => {
     expect(answer).toBe("hello");
   });
 
-  test("degrades to answering when the model picks an unknown tool", async () => {
+  test("reflects on an unknown tool and can recover on the next decide", async () => {
     const backend = new ScriptedBackend(
-      ['{"action":"tool","tool":"nope","args":{}}'],
+      ['{"action":"tool","tool":"nope","args":{}}', '{"action":"answer"}'],
       ["fallback"],
     );
     const { steps, answer } = await collect(makePlanner(backend), ctx());
-    expect(steps.some((s) => s.includes("unknown tool"))).toBe(true);
+    expect(steps.some((s) => s.includes("not a registered tool"))).toBe(true);
     expect(answer).toBe("fallback");
   });
 
